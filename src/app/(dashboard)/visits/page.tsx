@@ -1,18 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { EyeOff, MessageSquare, RefreshCw } from "lucide-react";
-import { apiGet, apiGetPage, apiPost, ApiError } from "@/lib/api";
+import Link from "next/link";
+import { RefreshCw } from "lucide-react";
+import { apiGetPage, ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -28,46 +23,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Textarea } from "@/components/ui/textarea";
-
-interface Party {
-  user_id: number;
-  full_name: string;
-  phone: string | null;
-}
-
-interface Payment {
-  id: number;
-  external_id: string;
-  status: string;
-  amount: number;
-  refunded_amount: number;
-}
 
 interface Visit {
   id: number;
   status: string;
   service_name: string;
   scheduled_at: string;
-  duration_minutes: number;
-  address_label: string;
   price_amount: number;
-  note: string | null;
-  cancel_reason: string | null;
-  decline_reason: string | null;
-  created_at: string;
-  ustadz: Party | null;
-  requester: Party | null;
-  payment: Payment | null;
-  unread?: number;
-}
-
-interface ChatMsg {
-  id: number;
-  sender_id: number;
-  body: string;
-  created_at: string;
-  read_at: string | null;
+  requester: { full_name: string } | null;
+  ustadz: { full_name: string } | null;
+  payment: { status: string; refunded_amount: number } | null;
 }
 
 const statusColor: Record<string, string> = {
@@ -83,8 +48,7 @@ const statusColor: Record<string, string> = {
 
 function fmt(iso: string | null) {
   if (!iso) return "-";
-  const d = new Date(iso);
-  return d.toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "short" });
+  return new Date(iso).toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "short" });
 }
 
 function rp(n: number | null | undefined) {
@@ -95,12 +59,6 @@ export default function VisitsPage() {
   const [items, setItems] = useState<Visit[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>("ALL");
-  const [detail, setDetail] = useState<Visit | null>(null);
-  const [chat, setChat] = useState<ChatMsg[] | null>(null);
-  const [forceCancel, setForceCancel] = useState<Visit | null>(null);
-  const [reason, setReason] = useState("");
-  const [forceRefund, setForceRefund] = useState(false);
-  const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -119,58 +77,6 @@ export default function VisitsPage() {
   useEffect(() => {
     load();
   }, [load]);
-
-  async function openDetail(v: Visit) {
-    setDetail(v);
-    setChat(null);
-  }
-
-  async function openChat(v: Visit) {
-    setDetail(v);
-    setChat([]);
-    try {
-      const msgs = await apiGet<ChatMsg[]>(`/admin/visits/${v.id}/messages`);
-      setChat(msgs);
-    } catch {
-      setChat(null);
-      toast.error("Gagal memuat chat");
-    }
-  }
-
-  async function doForceComplete() {
-    if (!detail) return;
-    setBusy(true);
-    try {
-      await apiPost(`/admin/visits/${detail.id}/force-complete`);
-      toast.success("Ditandai selesai (force)");
-      setDetail(null);
-      load();
-    } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : "Gagal");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function doForceCancel() {
-    if (!forceCancel || !reason.trim()) return;
-    setBusy(true);
-    try {
-      await apiPost(`/admin/visits/${forceCancel.id}/force-cancel`, {
-        reason: reason.trim(),
-        force_refund: forceRefund,
-      });
-      toast.success("Dibatalkan (force)");
-      setForceCancel(null);
-      setReason("");
-      setForceRefund(false);
-      load();
-    } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : "Gagal");
-    } finally {
-      setBusy(false);
-    }
-  }
 
   return (
     <div className="space-y-4">
@@ -215,12 +121,12 @@ export default function VisitsPage() {
                 <TableHead>Tarif</TableHead>
                 <TableHead>Payment</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="text-right">Aksi</TableHead>
+                <TableHead className="text-right">Detail</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {items.map((v) => (
-                <TableRow key={v.id}>
+                <TableRow key={v.id} className="hover:bg-muted/50">
                   <TableCell>{v.id}</TableCell>
                   <TableCell>{v.service_name}</TableCell>
                   <TableCell>{v.requester?.full_name ?? "-"}</TableCell>
@@ -244,14 +150,9 @@ export default function VisitsPage() {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right">
-                    <div className="flex justify-end gap-1">
-                      <Button size="sm" variant="outline" onClick={() => openDetail(v)}>
-                        Detail
-                      </Button>
-                      <Button size="sm" variant="ghost" onClick={() => openChat(v)} title="Chat (dispute)">
-                        <MessageSquare className="h-4 w-4" />
-                      </Button>
-                    </div>
+                    <Button size="sm" variant="outline" render={<Link href={`/visits/${v.id}`} />}>
+                      Buka
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))}
@@ -259,148 +160,6 @@ export default function VisitsPage() {
           </Table>
         </div>
       )}
-
-      {/* Detail */}
-      <Dialog open={!!detail} onOpenChange={(o) => !o && setDetail(null)}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>
-              Kunjungan #{detail?.id} — {detail?.service_name}
-            </DialogTitle>
-          </DialogHeader>
-          {detail && (
-            <div className="space-y-3 text-sm">
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <p className="text-muted-foreground">Santri</p>
-                  <p className="font-medium">{detail.requester?.full_name}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Ustadz</p>
-                  <p className="font-medium">{detail.ustadz?.full_name}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Jadwal</p>
-                  <p className="font-medium">{fmt(detail.scheduled_at)} ({detail.duration_minutes} mnt)</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Tarif</p>
-                  <p className="font-medium">{rp(detail.price_amount)}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Patokan</p>
-                  <p className="font-medium">{detail.address_label}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Pembayaran</p>
-                  <p className="font-medium">
-                    {detail.payment
-                      ? `${detail.payment.status} • ${rp(detail.payment.amount)} ${detail.payment.external_id}`
-                      : "-"}
-                  </p>
-                </div>
-              </div>
-              {detail.note && (
-                <p className="rounded bg-muted p-2 text-xs">Catatan: {detail.note}</p>
-              )}
-              {(detail.cancel_reason || detail.decline_reason) && (
-                <p className="rounded bg-red-50 p-2 text-xs text-red-700">
-                  {detail.cancel_reason ?? detail.decline_reason}
-                </p>
-              )}
-              {(detail.status === "CONFIRMED" || detail.status === "WAITING_CONFIRM") && (
-                <div className="flex justify-end gap-2 pt-2">
-                  {detail.status === "CONFIRMED" && (
-                    <Button size="sm" onClick={doForceComplete} disabled={busy}>
-                      Force Selesai
-                    </Button>
-                  )}
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    onClick={() => {
-                      setForceCancel(detail);
-                      setDetail(null);
-                    }}
-                  >
-                    Force Batalkan
-                  </Button>
-                </div>
-              )}
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* Chat read-only */}
-      <Dialog open={!!detail && chat !== null} onOpenChange={(o) => !o && setChat(null)}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Chat Kunjungan #{detail?.id} (read-only)</DialogTitle>
-          </DialogHeader>
-          <div className="max-h-80 space-y-2 overflow-y-auto">
-            {chat && chat.length > 0 ? (
-              chat.map((m) => {
-                const mine = m.sender_id === detail?.requester?.user_id;
-                return (
-                  <div key={m.id} className={`flex ${mine ? "justify-start" : "justify-end"}`}>
-                    <div
-                      className={`max-w-[75%] rounded-lg px-3 py-2 text-xs ${
-                        mine ? "bg-amber-50" : "bg-green-50"
-                      }`}
-                    >
-                      <p className="font-semibold">
-                        {mine
-                          ? detail?.requester?.full_name
-                          : detail?.ustadz?.full_name}
-                      </p>
-                      <p>{m.body}</p>
-                      <p className="text-right text-[10px] text-muted-foreground">{fmt(m.created_at)}</p>
-                    </div>
-                  </div>
-                );
-              })
-            ) : (
-              <p className="py-8 text-center text-sm text-muted-foreground">Tidak ada pesan.</p>
-            )}
-          </div>
-          <p className="flex items-center gap-1 text-xs text-muted-foreground">
-            <EyeOff className="h-3 w-3" /> Admin hanya dapat membaca chat (penanganan dispute).
-          </p>
-        </DialogContent>
-      </Dialog>
-
-      {/* Force cancel */}
-      <Dialog open={!!forceCancel} onOpenChange={(o) => !o && setForceCancel(null)}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Force batalkan #{forceCancel?.id}?</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <Textarea
-              placeholder="Alasan (wajib, tercatat di audit)"
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-            />
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={forceRefund}
-                onChange={(e) => setForceRefund(e.target.checked)}
-              />
-              Refund penuh ke santri (override aturan)
-            </label>
-            <Button
-              className="w-full"
-              variant="destructive"
-              onClick={doForceCancel}
-              disabled={busy || !reason.trim()}
-            >
-              Batalkan Pesanan
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
