@@ -302,8 +302,7 @@ export function CampaignForm({
 
       {c && !isNew && (
         <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs text-emerald-800">
-          <b>{c.name}</b> — {STATUS_LABEL[c.status]} · {c.participants} peserta · {c.juz_completed}/
-          {30 * c.target_khataman} juz
+          <b>{c.name}</b> — {STATUS_LABEL[c.status]} · {c.participants} peserta · {c.juz_completed} dari {30 * c.target_khataman} juz selesai
         </div>
       )}
       {locked && (
@@ -328,7 +327,7 @@ export function CampaignForm({
               <p className="text-xs text-muted-foreground">Identitas API — tidak bisa diubah setelah dibuat.</p>
             </div>
             <div className="space-y-1">
-              <Label>Nama Campaign *</Label>
+              <Label>Nama Khatmil *</Label>
               <Input
                 placeholder="Khataman Ramadhan 2026"
                 value={form.name}

@@ -100,7 +100,7 @@ export default function KhatmilPage() {
           <TableHeader>
             <TableRow>
               <TableHead className="w-12">ID</TableHead>
-              <TableHead>Nama Campaign</TableHead>
+              <TableHead>Nama Khatmil</TableHead>
               <TableHead>Mode</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-center">Peserta</TableHead>
@@ -123,7 +123,7 @@ export default function KhatmilPage() {
             ) : filtered.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={8} className="py-8 text-center text-sm text-muted-foreground">
-                  Tidak ada campaign
+                  Belum ada khatmil
                 </TableCell>
               </TableRow>
             ) : (
@@ -146,8 +146,8 @@ export default function KhatmilPage() {
                     <StatusBadge status={c.status} />
                   </TableCell>
                   <TableCell className="text-center text-sm">{c.participants}</TableCell>
-                  <TableCell className="text-center text-sm">
-                    {c.juz_completed}/{30 * c.target_khataman}
+                  <TableCell className="whitespace-nowrap text-center text-sm">
+                    {c.juz_completed} dari {30 * c.target_khataman} juz selesai
                   </TableCell>
                   <TableCell onClick={(e) => e.stopPropagation()}>
                     <MiniBar pct={c.progress_pct} />
@@ -191,7 +191,7 @@ export default function KhatmilPage() {
         {loading ? (
           <Skeleton className="h-20 w-full" />
         ) : filtered.length === 0 ? (
-          <div className="rounded-lg border py-8 text-center text-sm text-muted-foreground">Tidak ada campaign</div>
+          <div className="rounded-lg border py-8 text-center text-sm text-muted-foreground">Belum ada khatmil</div>
         ) : (
           filtered.map((c) => (
             <button
@@ -220,7 +220,7 @@ export default function KhatmilPage() {
               <div className="mt-2 flex items-center gap-2">
                 <MiniBar pct={c.progress_pct} className="flex-1" />
                 <span className="text-xs font-semibold text-primary">
-                  {c.juz_completed}/{30 * c.target_khataman}
+                  {c.juz_completed}/{30 * c.target_khataman} juz selesai
                 </span>
                 <span className="text-muted-foreground">›</span>
               </div>
