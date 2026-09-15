@@ -13,7 +13,9 @@ import {
   Settings,
   ScrollText,
   Sparkles,
-} from "lucide-react";
+  Bike,
+  Wallet,
+  Star,} from "lucide-react";
 
 import {
   Sidebar,
@@ -34,6 +36,12 @@ const mainNav = [
   { label: "Hafalan", icon: GraduationCap, href: "/hafalan" },
   { label: "Tanya Ustadz", icon: MessageCircleQuestion, href: "/tanya" },
   { label: "Khatmil", icon: BookOpenText, href: "/khatmil" },
+];
+
+const layananNav = [
+  { label: "Kunjungan", icon: Bike, href: "/visits" },
+  { label: "Pembayaran", icon: Wallet, href: "/payments" },
+  { label: "Review", icon: Star, href: "/reviews" },
 ];
 
 const kontenNav = [
@@ -73,6 +81,21 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               {mainNav.map((item) => (
+                <SidebarMenuItem key={item.href}>
+                  <SidebarMenuButton render={<Link href={item.href} />} isActive={isActive(item.href)}>
+                      <item.icon />
+                      <span>{item.label}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+        <SidebarGroup>
+          <SidebarGroupLabel>Pesan Ustadz</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {layananNav.map((item) => (
                 <SidebarMenuItem key={item.href}>
                   <SidebarMenuButton render={<Link href={item.href} />} isActive={isActive(item.href)}>
                       <item.icon />
