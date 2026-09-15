@@ -33,8 +33,10 @@ import {
 const mainNav = [
   { label: "Dashboard", icon: LayoutDashboard, href: "/" },
   { label: "Pengguna", icon: Users, href: "/pengguna" },
-  { label: "Hafalan", icon: GraduationCap, href: "/hafalan" },
-  { label: "Tanya Ustadz", icon: MessageCircleQuestion, href: "/tanya" },
+  // HIDDEN (per user 15Sep): Hafalan & Tanya Ustadz — halaman tetap ada, cukup hapus
+  // komentar baris di bawah utk menampilkan kembali:
+  // { label: "Hafalan", icon: GraduationCap, href: "/hafalan" },
+  // { label: "Tanya Ustadz", icon: MessageCircleQuestion, href: "/tanya" },
   { label: "Khatmil", icon: BookOpenText, href: "/khatmil" },
 ];
 
