@@ -19,10 +19,9 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   });
 
   if (res.status === 401) {
-    if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
-      window.location.href = "/login";
-    }
-    throw new ApiError("unauthorized", "Sesi berakhir — silakan login", 401);
+    // rev 3.4: TIDAK mengusir user ke /login otomatis (proxy auto-refresh menangani
+    // token kedaluwarsa). Error ditampilkan sebagai pesan; user tetap di halaman.
+    throw new ApiError("unauthorized", "Sesi berakhir — silakan muat ulang halaman", 401);
   }
 
   const json = await res.json().catch(() => null);
@@ -51,8 +50,7 @@ export async function apiGetPage<T>(
     cache: "no-store",
   });
   if (res.status === 401) {
-    if (typeof window !== "undefined") window.location.href = "/login";
-    throw new ApiError("unauthorized", "Sesi berakhir", 401);
+    throw new ApiError("unauthorized", "Sesi berakhir — silakan muat ulang halaman", 401);
   }
   const json = await res.json().catch(() => null);
   if (!res.ok) {
