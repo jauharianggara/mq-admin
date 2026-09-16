@@ -211,7 +211,7 @@ export default function VisitDetailPage({ params }: { params: Promise<{ id: stri
                   <Info label="Ustadz" value={v.ustadz?.full_name ?? "-"} />
                   <Info label="Jadwal" value={fmt(v.scheduled_at)} />
                   <Info label="Durasi" value={`${v.duration_hours} jam`} />
-                  <Info label="Tarif" value={`${rp(v.price_per_hour)} / jam`} />
+                  <Info label="Infaq" value={`${rp(v.price_per_hour)} / jam`} />
                   <Info label="Total" value={rp(v.price_total)} />
                   <Info
                     label="Titik lokasi santri"

@@ -72,9 +72,8 @@ export function AppSidebar() {
     <Sidebar>
       <SidebarHeader>
         <div className="flex items-center gap-2 px-2 py-1.5">
-          <div className="flex size-8 items-center justify-center rounded-md bg-primary text-primary-foreground font-bold">
-            MQ
-          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.png" alt="Logo MQ" className="size-8 rounded-md object-cover" />
           <div className="leading-tight">
             <div className="text-sm font-semibold">MQ Admin</div>
             <div className="text-xs text-muted-foreground">Mujayarotul Faqih</div>
