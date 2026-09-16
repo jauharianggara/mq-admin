@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "branchName": "main",
+  "worktreePath": "C:\\Users\\jauha\\ZCodeProject\\mq-admin",
+  "upstream": "origin/main",
+  "mergeBase": "3fae04c2e2aa511688ce363fc49e5727fcd1a3c7",
+  "firstSeenHead": "3fae04c2e2aa511688ce363fc49e5727fcd1a3c7",
+  "lastSeenHead": "3fae04c2e2aa511688ce363fc49e5727fcd1a3c7",
+  "lastAnalyzedHead": "3fae04c2e2aa511688ce363fc49e5727fcd1a3c7",
+  "stale": false,
+  "staleReason": null,
+  "staleSince": null,
+  "lifecycleEvent": null,
+  "createdAt": "2026-09-16T10:13:23.052Z",
+  "updatedAt": "2026-09-16T10:13:23.052Z"
+}

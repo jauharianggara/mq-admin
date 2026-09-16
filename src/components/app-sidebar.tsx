@@ -15,6 +15,7 @@ import {
   Sparkles,
   Bike,
   Wallet,
+  Landmark,
   Star,} from "lucide-react";
 
 import {
@@ -43,6 +44,7 @@ const mainNav = [
 const layananNav = [
   { label: "Kunjungan", icon: Bike, href: "/visits" },
   { label: "Pembayaran", icon: Wallet, href: "/payments" },
+  { label: "Penarikan", icon: Landmark, href: "/payouts" },
   { label: "Review", icon: Star, href: "/reviews" },
 ];
 
