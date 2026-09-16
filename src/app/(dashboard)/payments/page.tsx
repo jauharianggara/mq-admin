@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { RefreshCw, Undo2 } from "lucide-react";
-import { apiGetPage, apiPost, ApiError } from "@/lib/api";
+import { RefreshCw } from "lucide-react";
+import { apiGet, ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -26,77 +26,93 @@ import {
 interface Payment {
   id: number;
   external_id: string;
-  xendit_invoice_id: string | null;
+  provider: string;
+  channel: string | null;
   amount: number;
   status: string;
-  channel: string | null;
-  refunded_amount: number;
-  visit_id: number;
+  subject_type: string; // ustadz_visit | wallet_topup
+  subject_id: number;
+  subject_label: string;
   created_at: string;
+  paid_at: string | null;
+}
+
+interface PaymentsResp {
+  items: Payment[];
+  meta: { pagination: { next_cursor: string | null; has_more: boolean } };
 }
 
 const statusColor: Record<string, string> = {
   PENDING: "bg-sky-100 text-sky-700",
   PAID: "bg-green-100 text-green-700",
   EXPIRED: "bg-gray-200 text-gray-600",
-  REFUND_REQUESTED: "bg-amber-100 text-amber-700",
-  REFUND_PENDING_MANUAL: "bg-orange-100 text-orange-700",
   REFUNDED: "bg-purple-100 text-purple-700",
   FAILED: "bg-red-100 text-red-700",
+};
+
+const jenisLabel: Record<string, string> = {
+  ustadz_visit: "Kunjungan",
+  wallet_topup: "Top-up deposit",
 };
 
 function rp(n: number) {
   return "Rp " + n.toLocaleString("id-ID");
 }
 
-function fmt(iso: string) {
+function fmt(iso: string | null) {
+  if (!iso) return "-";
   return new Date(iso).toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "short" });
 }
 
 export default function PaymentsPage() {
   const [items, setItems] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [jenis, setJenis] = useState<string>("ALL");
   const [filter, setFilter] = useState<string>("ALL");
-  const [busy, setBusy] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const { items } = await apiGetPage<Payment>("/admin/payments", {
-        status: filter === "ALL" ? undefined : filter,
-      });
-      setItems(items);
+      const qs = new URLSearchParams();
+      if (filter !== "ALL") qs.set("status", filter);
+      if (jenis !== "ALL") qs.set("subject_type", jenis);
+      const q = qs.toString();
+      const d = await apiGet<PaymentsResp>(`/admin/payments${q ? `?${q}` : ""}`);
+      setItems(d.items ?? []);
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : "Gagal memuat pembayaran");
     } finally {
       setLoading(false);
     }
-  }, [filter]);
+  }, [filter, jenis]);
 
   useEffect(() => {
     load();
   }, [load]);
 
-  async function markRefunded(p: Payment) {
-    setBusy(p.id);
-    try {
-      await apiPost(`/admin/payments/${p.id}/mark-refunded`);
-      toast.success("Ditandai dikembalikan (manual)");
-      load();
-    } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : "Gagal menandai");
-    } finally {
-      setBusy(null);
-    }
-  }
-
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Pembayaran (Xendit)</h1>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h1 className="text-2xl font-semibold">Pembayaran (Xendit)</h1>
+          <p className="text-sm text-muted-foreground">
+            Semua invoice: pembayaran kunjungan <strong>dan</strong> top-up deposit santri.
+            Pengembalian dana selalu otomatis masuk ke deposit santri — tidak ada tindakan manual.
+          </p>
+        </div>
         <div className="flex items-center gap-2">
+          <Select value={jenis} onValueChange={(v) => setJenis(v ?? "ALL")}>
+            <SelectTrigger className="w-44">
+              <SelectValue placeholder="Semua jenis" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL">Semua jenis</SelectItem>
+              <SelectItem value="ustadz_visit">Kunjungan</SelectItem>
+              <SelectItem value="wallet_topup">Top-up deposit</SelectItem>
+            </SelectContent>
+          </Select>
           <Select value={filter} onValueChange={(v) => setFilter(v ?? "ALL")}>
-            <SelectTrigger className="w-56">
+            <SelectTrigger className="w-40">
               <SelectValue placeholder="Semua status" />
             </SelectTrigger>
             <SelectContent>
@@ -114,20 +130,11 @@ export default function PaymentsPage() {
         </div>
       </div>
 
-      <p className="text-sm text-muted-foreground">
-        Refund otomatis dipanggil sistem saat ustadz menolak / timeout / late-PAID. Status{" "}
-        <Badge variant="secondary" className={statusColor.REFUND_PENDING_MANUAL}>
-          REFUND_PENDING_MANUAL
-        </Badge>{" "}
-        berarti refund API Xendit gagal — proses manual dari dashboard Xendit lalu tandai
-        dikembalikan di sini.
-      </p>
-
       {loading ? (
         <Skeleton className="h-64 w-full" />
       ) : items.length === 0 ? (
         <div className="rounded-lg border p-10 text-center text-muted-foreground">
-          Belum ada pembayaran.
+          Tidak ada pembayaran sesuai filter.
         </div>
       ) : (
         <div className="rounded-lg border">
@@ -135,48 +142,43 @@ export default function PaymentsPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>#</TableHead>
-                <TableHead>Visit</TableHead>
-                <TableHead>External ID</TableHead>
-                <TableHead>Nominal</TableHead>
-                <TableHead>Channel</TableHead>
+                <TableHead>Jenis</TableHead>
+                <TableHead>Untuk</TableHead>
+                <TableHead className="text-right">Nominal</TableHead>
+                <TableHead>Metode</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Dibuat</TableHead>
-                <TableHead className="text-right">Aksi</TableHead>
+                <TableHead>Dibayar</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {items.map((p) => (
-                <TableRow key={p.id}>
-                  <TableCell>{p.id}</TableCell>
-                  <TableCell>#{p.visit_id}</TableCell>
-                  <TableCell className="font-mono text-xs">{p.external_id}</TableCell>
-                  <TableCell className="whitespace-nowrap">{rp(p.amount)}</TableCell>
-                  <TableCell>{p.channel ?? "-"}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1">
-                      <Badge variant="secondary" className={statusColor[p.status] ?? ""}>
-                        {p.status}
-                      </Badge>
-                      {p.refunded_amount > 0 && (
-                        <span className="text-xs text-muted-foreground">
-                          -{rp(p.refunded_amount)}
-                        </span>
-                      )}
-                    </div>
+                <TableRow key={p.id} className="hover:bg-muted/50">
+                  <TableCell className="text-muted-foreground">{p.id}</TableCell>
+                  <TableCell>{jenisLabel[p.subject_type] ?? p.subject_type}</TableCell>
+                  <TableCell className="max-w-72">
+                    <span className="line-clamp-1 text-sm" title={p.subject_label}>
+                      {p.subject_label}
+                    </span>
                   </TableCell>
-                  <TableCell className="whitespace-nowrap">{fmt(p.created_at)}</TableCell>
-                  <TableCell className="text-right">
-                    {p.status === "REFUND_PENDING_MANUAL" || p.status === "PAID" ? (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => markRefunded(p)}
-                        disabled={busy === p.id}
-                        title="Tandai sudah dikembalikan manual via dashboard Xendit"
-                      >
-                        <Undo2 className="mr-1 h-3 w-3" /> Tandai Dikembalikan
-                      </Button>
-                    ) : null}
+                  <TableCell className="text-right font-semibold">{rp(p.amount)}</TableCell>
+                  <TableCell className="text-sm">
+                    {p.channel === "DEPOSIT"
+                      ? "Saldo (deposit)"
+                      : p.channel
+                        ? `Xendit (${p.channel})`
+                        : "Xendit"}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="secondary" className={statusColor[p.status] ?? ""}>
+                      {p.status}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
+                    {fmt(p.created_at)}
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
+                    {fmt(p.paid_at)}
                   </TableCell>
                 </TableRow>
               ))}

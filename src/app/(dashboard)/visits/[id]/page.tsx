@@ -36,15 +36,14 @@ interface Payment {
 interface Visit {
   id: number;
   status: string;
-  service_type_id: number;
-  service_name: string;
   scheduled_at: string;
-  duration_minutes: number;
+  duration_hours: number;
   lat: number | null;
   lng: number | null;
   address_label: string;
   note: string | null;
-  price_amount: number;
+  price_per_hour: number;
+  price_total: number;
   anonymized: boolean;
   cancel_reason: string | null;
   decline_reason: string | null;
@@ -173,7 +172,7 @@ export default function VisitDetailPage({ params }: { params: Promise<{ id: stri
           </Button>
           <div>
             <h1 className="text-2xl font-semibold">
-              Kunjungan #{id} — {v?.service_name ?? ""}
+              Kunjungan #{id} — {v ? `${v.duration_hours} jam` : ""}
             </h1>
             <p className="text-sm text-muted-foreground">Detail lengkap & penanganan dispute</p>
           </div>
@@ -211,7 +210,9 @@ export default function VisitDetailPage({ params }: { params: Promise<{ id: stri
                   <Info label="Santri" value={v.requester?.full_name ?? "-"} />
                   <Info label="Ustadz" value={v.ustadz?.full_name ?? "-"} />
                   <Info label="Jadwal" value={fmt(v.scheduled_at)} />
-                  <Info label="Durasi" value={`${v.duration_minutes} menit`} />
+                  <Info label="Durasi" value={`${v.duration_hours} jam`} />
+                  <Info label="Tarif" value={`${rp(v.price_per_hour)} / jam`} />
+                  <Info label="Total" value={rp(v.price_total)} />
                   <Info
                     label="Titik lokasi santri"
                     value={
@@ -261,10 +262,19 @@ export default function VisitDetailPage({ params }: { params: Promise<{ id: stri
                     <>
                       <Info label="Status" value={v.payment.status} />
                       <Info label="Nominal" value={rp(v.payment.amount)} />
+                      <Info
+                        label="Bayar dgn"
+                        value={
+                          v.payment.channel === "DEPOSIT"
+                            ? "Saldo (deposit)"
+                            : v.payment.channel
+                              ? `Xendit (${v.payment.channel})`
+                              : "Xendit"
+                        }
+                      />
                       {v.payment.refunded_amount > 0 && (
-                        <Info label="Dikembalikan" value={rp(v.payment.refunded_amount)} />
+                        <Info label="Dikembalikan ke deposit" value={rp(v.payment.refunded_amount)} />
                       )}
-                      {v.payment.channel && <Info label="Channel" value={v.payment.channel} />}
                       <div>
                         <p className="text-xs text-muted-foreground">External ID</p>
                         <p className="break-all font-mono text-xs">{v.payment.external_id}</p>

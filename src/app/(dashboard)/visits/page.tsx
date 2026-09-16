@@ -27,12 +27,13 @@ import {
 interface Visit {
   id: number;
   status: string;
-  service_name: string;
   scheduled_at: string;
-  price_amount: number;
+  duration_hours: number;
+  price_per_hour: number;
+  price_total: number;
   requester: { full_name: string } | null;
   ustadz: { full_name: string } | null;
-  payment: { status: string; refunded_amount: number } | null;
+  payment: { status: string; channel: string | null; refunded_amount: number } | null;
 }
 
 const statusColor: Record<string, string> = {
@@ -114,12 +115,12 @@ export default function VisitsPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>#</TableHead>
-                <TableHead>Layanan</TableHead>
                 <TableHead>Santri</TableHead>
                 <TableHead>Ustadz</TableHead>
                 <TableHead>Jadwal</TableHead>
-                <TableHead>Tarif</TableHead>
-                <TableHead>Payment</TableHead>
+                <TableHead>Durasi</TableHead>
+                <TableHead>Bayar dgn</TableHead>
+                <TableHead className="text-right">Total</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Detail</TableHead>
               </TableRow>
@@ -128,15 +129,18 @@ export default function VisitsPage() {
               {items.map((v) => (
                 <TableRow key={v.id} className="hover:bg-muted/50">
                   <TableCell>{v.id}</TableCell>
-                  <TableCell>{v.service_name}</TableCell>
                   <TableCell>{v.requester?.full_name ?? "-"}</TableCell>
                   <TableCell>{v.ustadz?.full_name ?? "-"}</TableCell>
                   <TableCell className="whitespace-nowrap">{fmt(v.scheduled_at)}</TableCell>
-                  <TableCell className="whitespace-nowrap">{rp(v.price_amount)}</TableCell>
+                  <TableCell className="whitespace-nowrap">{v.duration_hours} jam</TableCell>
                   <TableCell>
                     {v.payment ? (
                       <span className="text-xs">
-                        {v.payment.status}
+                        {v.payment.channel === "DEPOSIT"
+                          ? "Saldo"
+                          : v.payment.channel
+                            ? `Xendit (${v.payment.channel})`
+                            : "Xendit"}
                         {v.payment.refunded_amount > 0 &&
                           ` (-${rp(v.payment.refunded_amount)})`}
                       </span>
@@ -144,6 +148,7 @@ export default function VisitsPage() {
                       "-"
                     )}
                   </TableCell>
+                  <TableCell className="text-right font-semibold">{rp(v.price_total)}</TableCell>
                   <TableCell>
                     <Badge variant="secondary" className={statusColor[v.status] ?? ""}>
                       {v.status}
