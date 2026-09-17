@@ -32,6 +32,10 @@ interface AdminUser {
   status: string;
   roles: string[] | null;
   last_login_at: string | null;
+  full_name?: string | null;
+  city?: string | null;
+  pendidikan_terakhir?: string | null;
+  point?: { lat: number | null; lng: number | null; label: string | null } | null;
 }
 
 const statusVariant: Record<string, string> = {
@@ -135,6 +139,7 @@ export default function PenggunaPage() {
           <TableHeader>
             <TableRow>
               <TableHead className="w-12">ID</TableHead>
+              <TableHead>Nama</TableHead>
               <TableHead>Email / Phone</TableHead>
               <TableHead>Tipe</TableHead>
               <TableHead>Role</TableHead>
@@ -157,6 +162,10 @@ export default function PenggunaPage() {
               : items.map((u) => (
                   <TableRow key={u.id}>
                     <TableCell className="font-mono text-xs">{u.id}</TableCell>
+                    <TableCell>
+                      <div className="text-sm">{u.full_name || "—"}</div>
+                      {u.city && <div className="text-xs text-muted-foreground">{u.city}</div>}
+                    </TableCell>
                     <TableCell>
                       <div className="text-sm">{u.email ?? "—"}</div>
                       <div className="text-xs text-muted-foreground">{u.phone ?? ""}</div>

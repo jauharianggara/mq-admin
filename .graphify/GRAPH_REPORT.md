@@ -1,24 +1,24 @@
-# Graph Report - .  (2026-09-16)
+# Graph Report - .  (2026-09-17)
 
 ## Corpus Check
-- Corpus is ~30,963 words - fits in a single context window. You may not need a graph.
+- Corpus is ~31,523 words - fits in a single context window. You may not need a graph.
 
 ## Summary
-- 310 nodes · 810 edges · 11 communities detected
+- 311 nodes · 811 edges · 11 communities detected
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS
 - Token cost: 0 input · 0 output
-- Edge kinds: imports: 365 · contains: 254 · imports_from: 163 · calls: 26 · inherits: 1 · method: 1
+- Edge kinds: imports: 365 · contains: 255 · imports_from: 163 · calls: 26 · inherits: 1 · method: 1
 
 
 ## Input Scope
 - Requested: auto
 - Resolved: committed (source: default-auto)
-- Included files: 66 · Candidates: 135
-- Excluded: 1 untracked · 47315 ignored · 0 sensitive · 0 missing committed
+- Included files: 66 · Candidates: 142
+- Excluded: 0 untracked · 47315 ignored · 0 sensitive · 0 missing committed
 - Recommendation: Use --scope all or graphify.yaml inputs.corpus for a knowledge-base folder.
 
 ## Graph Freshness
-- Built from Git commit: `f12b14e`
+- Built from Git commit: `3512826`
 - Compare this hash to `git rev-parse HEAD` before trusting freshness-sensitive graph output.
 ## God Nodes (most connected - your core abstractions)
 1. `Button()` - 21 edges
@@ -51,16 +51,16 @@ Cohesion: 0.06
 Nodes (28): segmentLabels, DashboardData, login(), logout(), me(), MqUser, cn(), SettingsMap (+20 more)
 
 ### Community 3 - "Community 3"
-Cohesion: 0.07
-Nodes (35): CmsItem, Entity, entityConfig, ChatMsg, fmt(), fmtShort(), Party, Payment (+27 more)
+Cohesion: 0.06
+Nodes (30): ChatMsg, fmt(), fmtShort(), Party, Payment, rp(), statusColor, Visit (+22 more)
 
 ### Community 4 - "Community 4"
 Cohesion: 0.11
 Nodes (12): statusColor, Submission, MessageOut, QuestionOut, statusColor, Thread, Button(), buttonVariants (+4 more)
 
 ### Community 5 - "Community 5"
-Cohesion: 0.13
-Nodes (6): patchCampaign(), DropdownMenu(), DropdownMenuContent(), DropdownMenuItem(), DropdownMenuSeparator(), DropdownMenuTrigger()
+Cohesion: 0.16
+Nodes (11): CmsItem, Entity, entityConfig, loginSchema, Input(), Label(), Tabs(), TabsContent() (+3 more)
 
 ### Community 6 - "Community 6"
 Cohesion: 0.22
@@ -95,11 +95,11 @@ Nodes (1): config
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `cn()` connect `Community 2` to `Community 0`, `Community 4`, `Community 5`, `Community 3`, `Community 1`?**
+- **Why does `cn()` connect `Community 2` to `Community 0`, `Community 4`, `Community 3`, `Community 5`, `Community 1`?**
   _High betweenness centrality (0.111) - this node is a cross-community bridge._
-- **Why does `Button()` connect `Community 4` to `Community 3`, `Community 2`, `Community 0`, `Community 5`, `Community 6`, `Community 1`?**
+- **Why does `Button()` connect `Community 4` to `Community 5`, `Community 2`, `Community 0`, `Community 3`, `Community 6`, `Community 1`?**
   _High betweenness centrality (0.075) - this node is a cross-community bridge._
-- **Why does `Skeleton()` connect `Community 0` to `Community 3`, `Community 2`, `Community 6`, `Community 4`, `Community 5`, `Community 1`?**
+- **Why does `Skeleton()` connect `Community 0` to `Community 5`, `Community 2`, `Community 6`, `Community 4`, `Community 3`, `Community 1`?**
   _High betweenness centrality (0.039) - this node is a cross-community bridge._
 - **What connects `eslintConfig`, `nextConfig`, `config` to the rest of the system?**
   _60 weakly-connected nodes found - possible documentation gaps or missing edges._
