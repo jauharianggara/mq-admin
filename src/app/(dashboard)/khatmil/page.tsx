@@ -26,6 +26,15 @@ import { Plus, Search } from "lucide-react";
 import { Campaign, MiniBar, patchCampaign, StatusBadge, STATUS_LABEL } from "./shared";
 
 /** List campaign — page utama. Detail/form = halaman terpisah (rev 3.4: NO dialog utk konten besar). */
+// Tanggal Indonesia ringkas: "1 Sep 2026" (input YYYY-MM-DD; kosong → "")
+function fmtDate(s?: string | null): string {
+  if (!s) return "";
+  const [y, m, d] = s.slice(0, 10).split("-").map(Number);
+  if (!y || !m || !d) return s;
+  const bulan = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
+  return `${d} ${bulan[m - 1]} ${y}`;
+}
+
 export default function KhatmilPage() {
   const router = useRouter();
   const [items, setItems] = useState<Campaign[]>([]);
@@ -134,7 +143,7 @@ export default function KhatmilPage() {
                     <div className="text-sm font-medium">{c.name}</div>
                     <div className="text-xs text-muted-foreground">
                       {c.slug}
-                      {c.period_start ? ` · ${c.period_start}${c.period_end ? ` – ${c.period_end}` : ""}` : ""}
+                      {c.period_start ? ` · ${fmtDate(c.period_start)}${c.period_end ? ` – ${fmtDate(c.period_end)}` : ""}` : ""}
                     </div>
                   </TableCell>
                   <TableCell>
@@ -211,8 +220,8 @@ export default function KhatmilPage() {
                   <>
                     <span>·</span>
                     <span>
-                      {c.period_start}
-                      {c.period_end ? `–${c.period_end}` : ""}
+                      {fmtDate(c.period_start)}
+                      {c.period_end ? ` – ${fmtDate(c.period_end)}` : ""}
                     </span>
                   </>
                 )}
