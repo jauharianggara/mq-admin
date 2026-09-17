@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight, RefreshCw, Search } from "lucide-react";
 import { apiGetPage, ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -54,6 +55,7 @@ function fmt(iso: string | null) {
 }
 
 export default function SantriPage() {
+  const router = useRouter();
   const [items, setItems] = useState<Santri[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
@@ -156,7 +158,7 @@ export default function SantriPage() {
               </TableRow>
             ) : (
               items.map((s) => (
-                <TableRow key={s.id} className="hover:bg-muted/50">
+                <TableRow key={s.id} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(`/santri/${s.id}`)}>
                   <TableCell>
                     <div className="font-medium">{s.full_name}</div>
                     <div className="text-xs text-muted-foreground">#{s.id}</div>

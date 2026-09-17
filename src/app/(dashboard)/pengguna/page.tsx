@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Search, ChevronLeft, ChevronRight } from "lucide-react";
 import { apiGetPage, apiPatch, ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -47,6 +48,7 @@ const statusVariant: Record<string, string> = {
 };
 
 export default function PenggunaPage() {
+  const router = useRouter();
   const [items, setItems] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
@@ -173,8 +175,19 @@ export default function PenggunaPage() {
                     ))}
                   </TableRow>
                 ))
-              : items.map((u) => (
-                  <TableRow key={u.id}>
+              : items.map((u) => {
+                  // klik baris -> detail sesuai peran (santri/ustadz punya halaman khusus)
+                  const detailHref = u.roles?.includes("USTADZ")
+                    ? `/ustadz/${u.id}`
+                    : u.roles?.includes("SANTRI")
+                      ? `/santri/${u.id}`
+                      : null;
+                  return (
+                  <TableRow
+                    key={u.id}
+                    className={detailHref ? "cursor-pointer hover:bg-muted/50" : ""}
+                    onClick={() => detailHref && router.push(detailHref)}
+                  >
                     <TableCell className="font-mono text-xs">{u.id}</TableCell>
                     <TableCell>
                       <div className="text-sm">{u.full_name || "—"}</div>
@@ -244,7 +257,8 @@ export default function PenggunaPage() {
                       )}
                     </TableCell>
                   </TableRow>
-                ))}
+                  );
+                })}
           </TableBody>
         </Table>
       </div>

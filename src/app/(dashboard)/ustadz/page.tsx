@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight, RefreshCw, Search } from "lucide-react";
 import { apiGetPage, ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -59,6 +60,7 @@ function fmt(iso: string | null) {
 }
 
 export default function UstadzPage() {
+  const router = useRouter();
   const [items, setItems] = useState<Ustadz[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
@@ -174,7 +176,7 @@ export default function UstadzPage() {
               </TableRow>
             ) : (
               items.map((u) => (
-                <TableRow key={u.id} className="hover:bg-muted/50">
+                <TableRow key={u.id} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(`/ustadz/${u.id}`)}>
                   <TableCell>
                     <div className="flex items-center gap-1.5 font-medium">
                       {u.full_name}
