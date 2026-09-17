@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { RefreshCw } from "lucide-react";
 import { apiGet, ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -65,10 +66,12 @@ function fmt(iso: string | null) {
 }
 
 export default function PaymentsPage() {
+  const router = useRouter();
   const [items, setItems] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
   const [jenis, setJenis] = useState<string>("ALL");
   const [filter, setFilter] = useState<string>("ALL");
+  const [total, setTotal] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -88,13 +91,22 @@ export default function PaymentsPage() {
 
   useEffect(() => {
     load();
-  }, [load]);
+    const qs = new URLSearchParams({ entity: "payments" });
+    if (filter !== "ALL") qs.set("status", filter);
+    if (jenis !== "ALL") qs.set("subject_type", jenis);
+    apiGet<{ total: number }>(`/admin/count?${qs.toString()}`)
+      .then((d) => setTotal(d.total))
+      .catch(() => {});
+  }, [load, filter, jenis]);
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h1 className="text-2xl font-semibold">Pembayaran (Xendit)</h1>
+          <h1 className="text-2xl font-semibold">
+          Pembayaran (Xendit){" "}
+          {total !== null && <span className="text-lg font-normal text-muted-foreground">· {total} invoice</span>}
+        </h1>
           <p className="text-sm text-muted-foreground">
             Semua invoice: pembayaran kunjungan <strong>dan</strong> top-up deposit santri.
             Pengembalian dana selalu otomatis masuk ke deposit santri — tidak ada tindakan manual.
@@ -153,7 +165,11 @@ export default function PaymentsPage() {
             </TableHeader>
             <TableBody>
               {items.map((p) => (
-                <TableRow key={p.id} className="hover:bg-muted/50">
+                <TableRow
+                  key={p.id}
+                  className={p.subject_type === "ustadz_visit" ? "cursor-pointer hover:bg-muted/50" : "hover:bg-muted/50"}
+                  onClick={() => p.subject_type === "ustadz_visit" && router.push(`/visits/${p.subject_id}`)}
+                >
                   <TableCell className="text-muted-foreground">{p.id}</TableCell>
                   <TableCell>{jenisLabel[p.subject_type] ?? p.subject_type}</TableCell>
                   <TableCell className="max-w-72">

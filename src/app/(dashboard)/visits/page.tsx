@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { RefreshCw } from "lucide-react";
-import { apiGetPage, ApiError } from "@/lib/api";
+import { apiGet, apiGetPage, ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -60,6 +60,7 @@ export default function VisitsPage() {
   const [items, setItems] = useState<Visit[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>("ALL");
+  const [total, setTotal] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -77,12 +78,20 @@ export default function VisitsPage() {
 
   useEffect(() => {
     load();
-  }, [load]);
+    const qs = new URLSearchParams({ entity: "visits" });
+    if (filter !== "ALL") qs.set("status", filter);
+    apiGet<{ total: number }>(`/admin/count?${qs.toString()}`)
+      .then((d) => setTotal(d.total))
+      .catch(() => {});
+  }, [load, filter]);
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Kunjungan (Pesan Ustadz)</h1>
+        <h1 className="text-2xl font-semibold">
+          Kunjungan{" "}
+          {total !== null && <span className="text-lg font-normal text-muted-foreground">· {total} kunjungan</span>}
+        </h1>
         <div className="flex items-center gap-2">
           <Select value={filter} onValueChange={(v) => setFilter(v ?? "ALL")}>
             <SelectTrigger className="w-48">

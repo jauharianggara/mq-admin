@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CheckCircle2, Download, RefreshCw, Upload, XCircle } from "lucide-react";
-import { apiGetPage, apiPost, ApiError } from "@/lib/api";
+import { apiGet, apiGetPage, apiPost, ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -84,6 +84,7 @@ export default function PayoutsPage() {
   const [reason, setReason] = useState("");
   const [exporting, setExporting] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [total, setTotal] = useState<number | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
@@ -102,7 +103,12 @@ export default function PayoutsPage() {
 
   useEffect(() => {
     load();
-  }, [load]);
+    const qs = new URLSearchParams({ entity: "payouts" });
+    if (filter !== "ALL") qs.set("status", filter);
+    apiGet<{ total: number }>(`/admin/count?${qs.toString()}`)
+      .then((d) => setTotal(d.total))
+      .catch(() => {});
+  }, [load, filter]);
 
   async function approve(p: Payout) {
     if (
@@ -234,7 +240,10 @@ export default function PayoutsPage() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h1 className="text-2xl font-semibold">Penarikan Dana Ustadz</h1>
+          <h1 className="text-2xl font-semibold">
+          Penarikan Dana Ustadz{" "}
+          {total !== null && <span className="text-lg font-normal text-muted-foreground">· {total} pengajuan</span>}
+        </h1>
           <p className="text-sm text-muted-foreground">
             Ustadz mengajukan sendiri dari aplikasi — saldo terkunci sejak pengajuan.
             {pendingCount > 0 && (

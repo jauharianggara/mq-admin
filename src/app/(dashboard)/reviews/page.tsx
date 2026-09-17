@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { EyeOff, Eye, RefreshCw } from "lucide-react";
-import { apiGetPage, apiPost, ApiError } from "@/lib/api";
+import Link from "next/link";
+import { apiGet, apiGetPage, apiPost, ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -25,8 +26,10 @@ import {
 
 interface Review {
   id: number;
+  visit_id: number;
   direction: string;
   reviewer_id: number;
+  reviewer_name?: string;
   reviewee_id: number;
   rating: number;
   comment: string | null;
@@ -44,6 +47,7 @@ export default function ReviewsPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>("ALL");
   const [busy, setBusy] = useState<number | null>(null);
+  const [total, setTotal] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -61,7 +65,12 @@ export default function ReviewsPage() {
 
   useEffect(() => {
     load();
-  }, [load]);
+    const qs = new URLSearchParams({ entity: "reviews" });
+    if (filter !== "ALL") qs.set("direction", filter);
+    apiGet<{ total: number }>(`/admin/count?${qs.toString()}`)
+      .then((d) => setTotal(d.total))
+      .catch(() => {});
+  }, [load, filter]);
 
   async function setHidden(r: Review, hidden: boolean) {
     setBusy(r.id);
@@ -79,7 +88,10 @@ export default function ReviewsPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Review Kunjungan</h1>
+        <h1 className="text-2xl font-semibold">
+          Review Kunjungan{" "}
+          {total !== null && <span className="text-lg font-normal text-muted-foreground">· {total} review</span>}
+        </h1>
         <div className="flex items-center gap-2">
           <Select value={filter} onValueChange={(v) => setFilter(v ?? "ALL")}>
             <SelectTrigger className="w-64">
@@ -134,8 +146,12 @@ export default function ReviewsPage() {
                       {r.direction === "SANTRI_TO_USTADZ" ? "S→U" : "U→S"}
                     </Badge>
                   </TableCell>
-                  <TableCell>{r.reviewer_id}</TableCell>
-                  <TableCell>{r.reviewee_id}</TableCell>
+                  <TableCell>{r.reviewer_name ?? `#${r.reviewer_id}`}</TableCell>
+                  <TableCell>
+                    <Link href={`/visits/${r.visit_id}`} className="text-sm underline-offset-2 hover:underline">
+                      Kunjungan #{r.visit_id}
+                    </Link>
+                  </TableCell>
                   <TableCell>
                     <span className="font-semibold text-amber-600">★{r.rating}</span>
                   </TableCell>

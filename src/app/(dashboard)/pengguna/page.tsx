@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search, ChevronLeft, ChevronRight } from "lucide-react";
-import { apiGetPage, apiPatch, ApiError } from "@/lib/api";
+import { apiGet, apiGetPage, apiPatch, ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -55,6 +55,7 @@ export default function PenggunaPage() {
   const [status, setStatus] = useState<string>("all");
   const [role, setRole] = useState<string>("all");
   const [cursor, setCursor] = useState<string | null>(null);
+  const [total, setTotal] = useState<number | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [error, setError] = useState("");
 
@@ -84,7 +85,14 @@ export default function PenggunaPage() {
 
   useEffect(() => {
     load(null, true);
-  }, [load]);
+    const qs = new URLSearchParams();
+    if (role !== "all") qs.set("role", role);
+    if (status !== "all") qs.set("status", status);
+    if (q.trim()) qs.set("q", q.trim());
+    apiGet<{ total: number }>(`/admin/users-count${qs.size ? `?${qs.toString()}` : ""}`)
+      .then((d) => setTotal(d.total))
+      .catch(() => {});
+  }, [load, role, status, q]);
 
   async function changeStatus(id: number, newStatus: string) {
     try {
@@ -109,7 +117,10 @@ export default function PenggunaPage() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Pengguna</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">
+          Pengguna{" "}
+          {total !== null && <span className="text-lg font-normal text-muted-foreground">· {total} akun</span>}
+        </h1>
         <p className="text-sm text-muted-foreground">Kelola akun santri, ustadz & admin</p>
       </div>
 
