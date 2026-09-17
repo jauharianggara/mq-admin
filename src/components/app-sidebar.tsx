@@ -6,6 +6,7 @@ import {
   LayoutDashboard,
   Users,
   GraduationCap,
+  BookUser,
   MessageCircleQuestion,
   BookOpenText,
   BookMarked,
@@ -34,6 +35,8 @@ import {
 
 const mainNav = [
   { label: "Dashboard", icon: LayoutDashboard, href: "/" },
+  { label: "Santri", icon: GraduationCap, href: "/santri" },
+  { label: "Ustadz", icon: BookUser, href: "/ustadz" },
   { label: "Pengguna", icon: Users, href: "/pengguna" },
   // HIDDEN (per user 15Sep): Hafalan & Tanya Ustadz — halaman tetap ada, cukup hapus
   // komentar baris di bawah utk menampilkan kembali:
