@@ -51,6 +51,7 @@ export default function PenggunaPage() {
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<string>("all");
+  const [role, setRole] = useState<string>("all");
   const [cursor, setCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [error, setError] = useState("");
@@ -63,6 +64,7 @@ export default function PenggunaPage() {
         const page = await apiGetPage<AdminUser>("/admin/users", {
           q: q || undefined,
           status: status === "all" ? undefined : status,
+          role: role === "all" ? undefined : role,
           cursor: c ?? undefined,
           limit: 20,
         });
@@ -75,7 +77,7 @@ export default function PenggunaPage() {
         setLoading(false);
       }
     },
-    [q, status],
+    [q, status, role],
   );
 
   useEffect(() => {
@@ -119,6 +121,18 @@ export default function PenggunaPage() {
             className="pl-8"
           />
         </div>
+        <Select value={role} onValueChange={(v) => setRole(v ?? "all")}>
+          <SelectTrigger className="w-40">
+            <SelectValue placeholder="Peran" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Semua peran</SelectItem>
+            <SelectItem value="SANTRI">Santri</SelectItem>
+            <SelectItem value="USTADZ">Ustadz</SelectItem>
+            <SelectItem value="ADMIN">Admin</SelectItem>
+            <SelectItem value="MODERATOR">Moderator</SelectItem>
+          </SelectContent>
+        </Select>
         <Select value={status} onValueChange={(v) => setStatus(v ?? "all")}>
           <SelectTrigger className="w-44">
             <SelectValue placeholder="Status" />
