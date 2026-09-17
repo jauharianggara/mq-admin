@@ -66,15 +66,18 @@ export default function UstadzPage() {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<string>("all");
   const [menerima, setMenerima] = useState<string>("all");
-  const [cursor, setCursor] = useState<string | null>(null);
+  const [next, setNext] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
+  // riwayat cursor per halaman (cursors[0] = halaman 1)
+  const [cursors, setCursors] = useState<(string | null)[]>([null]);
+  const [page, setPage] = useState(0);
 
   const load = useCallback(
     async (c: string | null, replace: boolean) => {
       setLoading(true);
       try {
         // filter "menerima" diterapkan client-side (data dari backend ringan)
-        const page = await apiGetPage<Ustadz>("/admin/ustadz", {
+        const result = await apiGetPage<Ustadz>("/admin/ustadz", {
           q: q || undefined,
           status: status === "all" ? undefined : status,
           cursor: c ?? undefined,
@@ -82,11 +85,11 @@ export default function UstadzPage() {
         });
         const filtered =
           menerima === "all"
-            ? page.items
-            : page.items.filter((u) => (menerima === "ya" ? u.is_accepting : !u.is_accepting));
+            ? result.items
+            : result.items.filter((u) => (menerima === "ya" ? u.is_accepting : !u.is_accepting));
         setItems(replace ? filtered : (prev) => [...prev, ...filtered]);
-        setCursor(page.nextCursor);
-        setHasMore(page.hasMore);
+        setNext(result.nextCursor);
+        setHasMore(result.hasMore);
       } catch (e) {
         toast.error(e instanceof ApiError ? e.message : "Gagal memuat ustadz");
       } finally {
@@ -97,8 +100,25 @@ export default function UstadzPage() {
   );
 
   useEffect(() => {
+    setCursors([null]);
+    setPage(0);
     load(null, true);
   }, [load]);
+
+  function goNext() {
+    if (!next) return;
+    const cs = [...cursors];
+    cs[page + 1] = next;
+    setCursors(cs);
+    setPage(page + 1);
+    load(next, true);
+  }
+
+  function goPrev() {
+    const p = page - 1;
+    setPage(p);
+    load(cursors[p] ?? null, true);
+  }
 
   return (
     <div className="space-y-4">
@@ -230,19 +250,14 @@ export default function UstadzPage() {
         </Table>
       </div>
 
-      {(cursor || hasMore) && (
+      {(page > 0 || hasMore) && (
         <div className="flex items-center justify-between">
-          <span className="text-sm text-muted-foreground">{items.length} ustadz dimuat</span>
+          <span className="text-sm text-muted-foreground">Halaman {page + 1}</span>
           <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={!cursor || loading}
-              onClick={() => load(cursor, true)}
-            >
+            <Button variant="outline" size="sm" disabled={page === 0 || loading} onClick={goPrev}>
               <ChevronLeft className="mr-1 h-4 w-4" /> Sebelumnya
             </Button>
-            <Button variant="outline" size="sm" disabled={!hasMore || loading} onClick={() => load(cursor, false)}>
+            <Button variant="outline" size="sm" disabled={!hasMore || loading} onClick={goNext}>
               Berikutnya <ChevronRight className="ml-1 h-4 w-4" />
             </Button>
           </div>
