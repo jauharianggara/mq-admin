@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight, RefreshCw, Search } from "lucide-react";
-import { apiGetPage, ApiError } from "@/lib/api";
+import { apiGet, apiGetPage, ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -62,6 +62,7 @@ export default function SantriPage() {
   const [status, setStatus] = useState<string>("all");
   const [next, setNext] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
+  const [total, setTotal] = useState<number | null>(null);
   // riwayat cursor per halaman (cursors[0] = halaman 1)
   const [cursors, setCursors] = useState<(string | null)[]>([null]);
   const [page, setPage] = useState(0);
@@ -92,6 +93,10 @@ export default function SantriPage() {
     setCursors([null]);
     setPage(0);
     load(null, true);
+    // total keseluruhan per role (tanpa filter) — utk header
+    apiGet<{ total: number }>(`/admin/users-count?role=SANTRI`)
+      .then((d) => setTotal(d.total))
+      .catch(() => {});
   }, [load]);
 
   function goNext() {
@@ -109,15 +114,16 @@ export default function SantriPage() {
     load(cursors[p] ?? null, true);
   }
 
-  const totalDeposit = items.reduce((a, b) => a + b.deposit, 0);
 
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Santri</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">
+          Santri{" "}
+          {total !== null && <span className="text-lg font-normal text-muted-foreground">· {total} santri</span>}
+        </h1>
         <p className="text-sm text-muted-foreground">
-          Daftar santri lengkap dengan deposit, khatmil aktif & riwayat kunjungan ngaji
-          {items.length > 0 && <> — total deposit {items.length} santri teratas: <strong>{rp(totalDeposit)}</strong></>}
+          Daftar santri lengkap dengan deposit, khatmil aktif & riwayat kunjungan ngaji — klik baris utk detail
         </p>
       </div>
 

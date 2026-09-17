@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight, RefreshCw, Search } from "lucide-react";
-import { apiGetPage, ApiError } from "@/lib/api";
+import { apiGet, apiGetPage, ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -68,6 +68,7 @@ export default function UstadzPage() {
   const [menerima, setMenerima] = useState<string>("all");
   const [next, setNext] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
+  const [total, setTotal] = useState<number | null>(null);
   // riwayat cursor per halaman (cursors[0] = halaman 1)
   const [cursors, setCursors] = useState<(string | null)[]>([null]);
   const [page, setPage] = useState(0);
@@ -103,7 +104,14 @@ export default function UstadzPage() {
     setCursors([null]);
     setPage(0);
     load(null, true);
-  }, [load]);
+    // total mengikuti filter q + status (menerima = client-side, tak dihitung)
+    const qs = new URLSearchParams({ role: "USTADZ" });
+    if (q.trim()) qs.set("q", q.trim());
+    if (status !== "all") qs.set("status", status);
+    apiGet<{ total: number }>(`/admin/users-count?${qs.toString()}`)
+      .then((d) => setTotal(d.total))
+      .catch(() => {});
+  }, [load, q, status]);
 
   function goNext() {
     if (!next) return;
@@ -123,9 +131,12 @@ export default function UstadzPage() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Ustadz</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">
+          Ustadz{" "}
+          {total !== null && <span className="text-lg font-normal text-muted-foreground">· {total} ustadz</span>}
+        </h1>
         <p className="text-sm text-muted-foreground">
-          Daftar ustadz: verifikasi, ketersediaan menerima pesanan, infaq per jam, rating santri & saldo penghasilan
+          Daftar ustadz: verifikasi, ketersediaan menerima pesanan, infaq per jam, rating santri & saldo penghasilan — klik baris utk detail
         </p>
       </div>
 
