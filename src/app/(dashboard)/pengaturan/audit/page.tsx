@@ -1,14 +1,24 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { apiGetPage, ApiError } from "@/lib/api";
+import { useMemo, useState } from "react";
+import {
+  PageHeader,
+  Toolbar,
+  SearchInput,
+  RefreshButton,
+  TableShell,
+  Head,
+  TableSkeleton,
+  EmptyRow,
+  Pager,
+} from "@/components/data-table";
+import { useAdminList } from "@/hooks/use-admin-list";
+import { fmtDateTime } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
   TableCell,
-  TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
@@ -18,112 +28,108 @@ interface AuditEntry {
   actor_id: number | null;
   action: string;
   module: string;
-  entity_type: string;
+  entity_type: string | null;
   entity_id: string | null;
   old: unknown;
   new: unknown;
   created_at: string;
 }
 
+const COLS = 7;
+
 export default function AuditPage() {
-  const [items, setItems] = useState<AuditEntry[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [q, setQ] = useState("");
+  const [module, setModule] = useState("all");
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const page = await apiGetPage<AuditEntry>("/admin/audit-logs", { limit: 50 });
-      setItems(page.items);
-    } catch {
-      // silent
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const list = useAdminList<AuditEntry>("/admin/audit-logs", {
+    params: { module: module === "all" ? undefined : module },
+    limit: 50,
+  });
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  const items = useMemo(() => {
+    const s = q.trim().toLowerCase();
+    if (!s) return list.items;
+    return list.items.filter(
+      (a) =>
+        a.module?.toLowerCase().includes(s) ||
+        a.action?.toLowerCase().includes(s) ||
+        String(a.entity_id ?? "").includes(s),
+    );
+  }, [list.items, q]);
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Audit Log</h1>
-        <p className="text-sm text-muted-foreground">
-          Jejak semua perubahan admin (terbaru dulu)
-        </p>
-      </div>
+      <PageHeader
+        title="Audit Log"
+        subtitle="Jejak semua perubahan data oleh admin & sistem"
+      />
 
-      <div className="rounded-lg border">
+      <Toolbar>
+        <SearchInput value={q} onChange={setQ} placeholder="Cari modul / aksi / ID entitas…" />
+        <select
+          className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+          value={module}
+          onChange={(e) => setModule(e.target.value)}
+        >
+          <option value="all">Semua modul</option>
+          <option value="users">users</option>
+          <option value="khatmil">khatmil</option>
+          <option value="visits">visits</option>
+          <option value="wallet">wallet</option>
+          <option value="cms">cms</option>
+          <option value="settings">settings</option>
+        </select>
+        <RefreshButton onClick={list.reload} />
+      </Toolbar>
+
+      <TableShell>
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-14">ID</TableHead>
-              <TableHead>Waktu</TableHead>
-              <TableHead>Aktor</TableHead>
-              <TableHead>Aksi</TableHead>
-              <TableHead>Modul</TableHead>
-              <TableHead>Entity</TableHead>
-              <TableHead>Detail</TableHead>
+              <Head label="Waktu" />
+              <Head label="Aktor" />
+              <Head label="Modul" />
+              <Head label="Aksi" />
+              <Head label="Entitas" />
+              <Head label="Perubahan" />
+              <Head label="Nilai Baru" />
             </TableRow>
           </TableHeader>
           <TableBody>
-            {loading ? (
-              Array.from({ length: 5 }).map((_, i) => (
-                <TableRow key={i}>
-                  {Array.from({ length: 7 }).map((_, j) => (
-                    <TableCell key={j}>
-                      <Skeleton className="h-4 w-full" />
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
+            {list.loading && list.items.length === 0 ? (
+              <TableSkeleton rows={6} cols={COLS} />
             ) : items.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={7} className="py-8 text-center text-sm text-muted-foreground">
-                  Belum ada audit entry
-                </TableCell>
-              </TableRow>
+              <EmptyRow colSpan={COLS} message="Belum ada log audit." />
             ) : (
               items.map((a) => (
                 <TableRow key={a.id}>
-                  <TableCell className="font-mono text-xs">{a.id}</TableCell>
-                  <TableCell className="text-xs text-muted-foreground">
-                    {a.created_at?.replace("T", " ").replace("Z", "")}
-                  </TableCell>
-                  <TableCell className="font-mono text-xs">{a.actor_id ?? "sys"}</TableCell>
-                  <TableCell>
-                    <Badge
-                      variant={
-                        a.action === "DELETE"
-                          ? "destructive"
-                          : a.action === "CREATE"
-                            ? "default"
-                            : "secondary"
-                      }
-                    >
-                      {a.action}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-sm">{a.module}</TableCell>
-                  <TableCell className="font-mono text-xs">
-                    {a.entity_type}#{a.entity_id}
-                  </TableCell>
-                  <TableCell className="max-w-48">
-                    {a.new !== null && a.new !== undefined ? (
-                      <code className="text-[10px] text-muted-foreground">
-                        {JSON.stringify(a.new).slice(0, 80)}
-                      </code>
+                  <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{fmtDateTime(a.created_at)}</TableCell>
+                  <TableCell className="text-xs">
+                    {a.actor_id ? (
+                      `#${a.actor_id}`
                     ) : (
-                      "—"
+                      <Badge variant="secondary" className="bg-gray-100 text-gray-600">sistem</Badge>
                     )}
                   </TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className="text-xs">{a.module}</Badge>
+                  </TableCell>
+                  <TableCell className="text-sm">{a.action}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground">
+                    {a.entity_type ? `${a.entity_type} ${a.entity_id ?? ""}` : "—"}
+                  </TableCell>
+                  <TableCell className="max-w-64 truncate text-xs text-muted-foreground">
+                    {a.old ? JSON.stringify(a.old) : "—"}
+                  </TableCell>
+                  <TableCell className="max-w-64 truncate text-xs">{a.new ? JSON.stringify(a.new) : "—"}</TableCell>
                 </TableRow>
               ))
             )}
           </TableBody>
         </Table>
-      </div>
+      </TableShell>
+
+      <Pager page={list.page} hasMore={list.hasMore} loading={list.loading} onPrev={list.goPrev} onNext={list.goNext} />
     </div>
   );
 }

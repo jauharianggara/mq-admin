@@ -1,25 +1,30 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { EyeOff, Eye, RefreshCw } from "lucide-react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { apiGet, apiGetPage, apiPost, ApiError } from "@/lib/api";
+import { apiGet, apiPost, ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  PageHeader,
+  Toolbar,
+  SearchInput,
+  RefreshButton,
+  TableShell,
+  SortHead,
+  Head,
+  TableSkeleton,
+  EmptyRow,
+  Pager,
+} from "@/components/data-table";
+import { useAdminList } from "@/hooks/use-admin-list";
+import { fmtDateTime } from "@/lib/format";
 import {
   Table,
   TableBody,
   TableCell,
-  TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
@@ -38,46 +43,42 @@ interface Review {
   created_at: string;
 }
 
-function fmt(iso: string) {
-  return new Date(iso).toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "short" });
-}
+const COLS = 9;
 
 export default function ReviewsPage() {
-  const [items, setItems] = useState<Review[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<string>("ALL");
+  const [q, setQ] = useState("");
+  const [filter, setFilter] = useState("ALL");
   const [busy, setBusy] = useState<number | null>(null);
   const [total, setTotal] = useState<number | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const { items } = await apiGetPage<Review>("/admin/reviews", {
-        direction: filter === "ALL" ? undefined : filter,
-      });
-      setItems(items);
-    } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : "Gagal memuat review");
-    } finally {
-      setLoading(false);
-    }
-  }, [filter]);
+  const list = useAdminList<Review>("/admin/reviews", {
+    params: { direction: filter === "ALL" ? undefined : filter },
+    limit: 50,
+  });
 
   useEffect(() => {
-    load();
     const qs = new URLSearchParams({ entity: "reviews" });
     if (filter !== "ALL") qs.set("direction", filter);
     apiGet<{ total: number }>(`/admin/count?${qs.toString()}`)
       .then((d) => setTotal(d.total))
       .catch(() => {});
-  }, [load, filter]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filter]);
+
+  const items = q.trim()
+    ? list.items.filter(
+        (r) =>
+          r.reviewer_name?.toLowerCase().includes(q.toLowerCase()) ||
+          (r.comment ?? "").toLowerCase().includes(q.toLowerCase()) ||
+          String(r.visit_id) === q.trim(),
+      )
+    : list.items;
 
   async function setHidden(r: Review, hidden: boolean) {
     setBusy(r.id);
     try {
       await apiPost(`/admin/reviews/${r.id}/${hidden ? "hide" : "unhide"}`);
-      toast.success(hidden ? "Review disembunyikan" : "Review ditampilkan kembali");
-      load();
+      list.reload();
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : "Gagal");
     } finally {
@@ -87,66 +88,58 @@ export default function ReviewsPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">
-          Review Kunjungan{" "}
-          {total !== null && <span className="text-lg font-normal text-muted-foreground">· {total} review</span>}
-        </h1>
-        <div className="flex items-center gap-2">
-          <Select value={filter} onValueChange={(v) => setFilter(v ?? "ALL")}>
-            <SelectTrigger className="w-64">
-              <SelectValue placeholder="Semua arah" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="ALL">Semua arah</SelectItem>
-              <SelectItem value="SANTRI_TO_USTADZ">Santri → Ustadz (publik)</SelectItem>
-              <SelectItem value="USTADZ_TO_SANTRI">Ustadz → Santri (privat)</SelectItem>
-            </SelectContent>
-          </Select>
-          <Button variant="outline" onClick={load}>
-            <RefreshCw className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title="Review Kunjungan"
+        total={total}
+        totalSuffix="review"
+        subtitle="Review dua arah (double-blind): baru terlihat setelah kedua pihak menilai atau window 7 hari lewat. Sembunyikan bila komentar tidak pantas — review tetap tersimpan untuk audit dan keluar dari rating agregat."
+      />
 
-      <p className="text-sm text-muted-foreground">
-        Review dua arah (double-blind): baru terlihat setelah kedua pihak menilai atau window 7
-        hari lewat. <strong>Sembunyikan</strong> bila komentar tidak pantas — review tetap
-        tersimpan untuk audit dan keluar dari rating agregat.
-      </p>
+      <Toolbar>
+        <SearchInput value={q} onChange={setQ} placeholder="Cari reviewer / komentar / no. kunjungan…" />
+        <Select value={filter} onValueChange={(v) => setFilter(v ?? "ALL")}>
+          <SelectTrigger className="w-64">
+            <SelectValue placeholder="Semua arah" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="ALL">Semua arah</SelectItem>
+            <SelectItem value="SANTRI_TO_USTADZ">Santri → Ustadz (publik)</SelectItem>
+            <SelectItem value="USTADZ_TO_SANTRI">Ustadz → Santri (privat)</SelectItem>
+          </SelectContent>
+        </Select>
+        <RefreshButton onClick={list.reload} />
+      </Toolbar>
 
-      {loading ? (
-        <Skeleton className="h-64 w-full" />
-      ) : items.length === 0 ? (
-        <div className="rounded-lg border p-10 text-center text-muted-foreground">
-          Belum ada review.
-        </div>
-      ) : (
-        <div className="rounded-lg border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>#</TableHead>
-                <TableHead>Arah</TableHead>
-                <TableHead>Reviewer</TableHead>
-                <TableHead>Dinilai</TableHead>
-                <TableHead>Rating</TableHead>
-                <TableHead>Comment</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Tanggal</TableHead>
-                <TableHead className="text-right">Aksi</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {items.map((r) => (
+      <TableShell>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <SortHead label="No." col="id" sort={list.sort} order={list.order} onSort={list.toggleSort} className="w-12" />
+              <Head label="Arah" />
+              <Head label="Penilai" />
+              <Head label="Kunjungan" />
+              <SortHead label="Rating" col="rating" sort={list.sort} order={list.order} onSort={list.toggleSort} />
+              <Head label="Komentar" />
+              <Head label="Keterlihatan" />
+              <SortHead label="Tanggal" col="created_at" sort={list.sort} order={list.order} onSort={list.toggleSort} />
+              <Head label="" className="text-right" />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {list.loading && list.items.length === 0 ? (
+              <TableSkeleton rows={5} cols={COLS} />
+            ) : items.length === 0 ? (
+              <EmptyRow colSpan={COLS} message="Belum ada review." />
+            ) : (
+              items.map((r) => (
                 <TableRow key={r.id}>
-                  <TableCell>{r.id}</TableCell>
+                  <TableCell className="font-mono text-xs text-muted-foreground">{r.id}</TableCell>
                   <TableCell>
                     <Badge variant="outline" className="text-xs">
                       {r.direction === "SANTRI_TO_USTADZ" ? "S→U" : "U→S"}
                     </Badge>
                   </TableCell>
-                  <TableCell>{r.reviewer_name ?? `#${r.reviewer_id}`}</TableCell>
+                  <TableCell className="text-sm">{r.reviewer_name ?? `#${r.reviewer_id}`}</TableCell>
                   <TableCell>
                     <Link href={`/visits/${r.visit_id}`} className="text-sm underline-offset-2 hover:underline">
                       Kunjungan #{r.visit_id}
@@ -155,18 +148,18 @@ export default function ReviewsPage() {
                   <TableCell>
                     <span className="font-semibold text-amber-600">★{r.rating}</span>
                   </TableCell>
-                  <TableCell className="max-w-64 truncate">{r.comment ?? "-"}</TableCell>
+                  <TableCell className="max-w-64 truncate text-sm">{r.comment ?? "-"}</TableCell>
                   <TableCell>
                     <div className="flex gap-1">
-                      {!r.revealed && <Badge variant="secondary">belum reveal</Badge>}
+                      {!r.revealed && <Badge variant="secondary">belum terlihat</Badge>}
                       {r.hidden && (
                         <Badge variant="secondary" className="bg-red-100 text-red-700">
-                          hidden
+                          disembunyikan
                         </Badge>
                       )}
                     </div>
                   </TableCell>
-                  <TableCell className="whitespace-nowrap">{fmt(r.created_at)}</TableCell>
+                  <TableCell className="whitespace-nowrap text-sm text-muted-foreground">{fmtDateTime(r.created_at)}</TableCell>
                   <TableCell className="text-right">
                     <Button
                       size="sm"
@@ -174,23 +167,17 @@ export default function ReviewsPage() {
                       onClick={() => setHidden(r, !r.hidden)}
                       disabled={busy === r.id}
                     >
-                      {r.hidden ? (
-                        <>
-                          <Eye className="mr-1 h-3 w-3" /> Tampilkan
-                        </>
-                      ) : (
-                        <>
-                          <EyeOff className="mr-1 h-3 w-3" /> Sembunyikan
-                        </>
-                      )}
+                      {r.hidden ? "Tampilkan" : "Sembunyikan"}
                     </Button>
                   </TableCell>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      )}
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </TableShell>
+
+      <Pager page={list.page} hasMore={list.hasMore} loading={list.loading} onPrev={list.goPrev} onNext={list.goNext} />
     </div>
   );
 }

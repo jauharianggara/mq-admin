@@ -1,33 +1,33 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { Plus, FileText, Archive, Eye } from "lucide-react";
-import { apiGet, apiPost, apiPatch, ApiError } from "@/lib/api";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Archive, FileText, Plus } from "lucide-react";
+import { apiGet, apiPatch, apiPost, ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
-import { toast } from "sonner";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  PageHeader,
+  Toolbar,
+  SearchInput,
+  RefreshButton,
+  TableShell,
+  SortHead,
+  Head,
+  TableSkeleton,
+  EmptyRow,
+} from "@/components/data-table";
+import { StatusPill, statusLabel } from "@/components/status-pill";
+import { fmtDate } from "@/lib/format";
 import {
   Table,
   TableBody,
   TableCell,
-  TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
@@ -37,79 +37,64 @@ interface Material {
   slug: string;
   title: string;
   tajwid_rule: string | null;
-  content_md: string | null;
   status: string;
+  content_md: string | null;
   published_at: string | null;
 }
 
-interface TajwidRule {
-  id: number;
-  code: string;
-  name_id: string;
-}
+// sementara hardcoded — tajwid_rules table belum di-seed di BE
+const TAJWID_RULES = ["Nun Sukun & Tanwin", "Mim Sukun", "Idgham", "Iqlab", "Ikhfa", "Mad", "Qalqalah", "Waqaf"];
 
-const statusVariant: Record<string, "default" | "secondary" | "outline"> = {
-  PUBLISHED: "default",
-  DRAFT: "secondary",
-  ARCHIVED: "outline",
-};
+const STATUS_ORDER = ["PUBLISHED", "DRAFT", "ARCHIVED"];
+const COLS = 7;
 
 export default function MateriPage() {
   const [items, setItems] = useState<Material[]>([]);
-  const [rules, setRules] = useState<TajwidRule[]>([]);
   const [loading, setLoading] = useState(true);
+  const [q, setQ] = useState("");
+  const [filter, setFilter] = useState("ALL");
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Material | null>(null);
   const [busy, setBusy] = useState(false);
-  const [form, setForm] = useState({
-    slug: "",
-    title: "",
-    tajwid_rule_code: "",
-    content_md: "",
-    status: "DRAFT",
-  });
+  const [form, setForm] = useState({ slug: "", title: "", tajwid_rule_code: "", content_md: "", status: "DRAFT" });
+  // sort client-side (list full-fetch)
+  const [sort, setSort] = useState<string | null>(null);
+  const [order, setOrder] = useState<"asc" | "desc">("asc");
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const list = await apiGet<Material[]>("/learning/materials?status=DRAFT&status=PUBLISHED&status=ARCHIVED");
-      setItems(list);
-    } catch {
-      // kalau 403 (bukan manage), coba tanpa status filter
-      try {
-        const list = await apiGet<Material[]>("/learning/materials");
-        setItems(list);
-      } catch (e) {
-        toast.error(e instanceof ApiError ? e.message : "Gagal memuat");
-      }
+      setItems(await apiGet<Material[]>("/learning/materials"));
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : "Gagal memuat");
     } finally {
       setLoading(false);
     }
   }, []);
 
-  const loadRules = useCallback(async () => {
-    try {
-      // query tajwid_rules via backend (publik endpoint belum ada — hardcode sementara)
-      // TODO: tambah GET /quran/tajwid-rules
-      setRules([
-        { id: 1, code: "IDGHAM_BIGUNNAH", name_id: "Idgham Bighunnah" },
-        { id: 2, code: "IDGHAM_BILAGHUNNAH", name_id: "Idgham Bilaghunnah" },
-        { id: 3, code: "IQLAB", name_id: "Iqlab" },
-        { id: 4, code: "IZHAR", name_id: "Izhar" },
-        { id: 5, code: "IKHFA", name_id: "Ikhfa" },
-        { id: 6, code: "GHUNNAH", name_id: "Ghunnah" },
-        { id: 7, code: "QALQALAH", name_id: "Qalqalah" },
-        { id: 8, code: "MADD", name_id: "Mad" },
-      ]);
-    } catch {
-      // silent
-    }
-  }, []);
-
   useEffect(() => {
     load();
-    loadRules();
-  }, [load, loadRules]);
+  }, [load]);
+
+  function toggleSort(col: string) {
+    if (sort !== col) { setSort(col); setOrder("asc"); }
+    else if (order === "asc") { setOrder("desc"); }
+    else { setSort(null); setOrder("asc"); }
+  }
+
+  const filtered = useMemo(() => {
+    const s = q.trim().toLowerCase();
+    const out = items.filter(
+      (m) => (filter === "ALL" || m.status === filter) && (!s || m.title.toLowerCase().includes(s) || m.slug.includes(s)),
+    );
+    if (!sort) return out;
+    const dir = order === "asc" ? 1 : -1;
+    return [...out].sort((a, b) => {
+      const va = sort === "published_at" ? (a.published_at ?? "") : String(a[sort as keyof Material] ?? "").toLowerCase();
+      const vb = sort === "published_at" ? (b.published_at ?? "") : String(b[sort as keyof Material] ?? "").toLowerCase();
+      return va.localeCompare(vb) * dir;
+    });
+  }, [items, q, filter, sort, order]);
 
   function openCreate() {
     setEditing(null);
@@ -119,13 +104,7 @@ export default function MateriPage() {
 
   function openEdit(m: Material) {
     setEditing(m);
-    setForm({
-      slug: m.slug,
-      title: m.title,
-      tajwid_rule_code: m.tajwid_rule ?? "",
-      content_md: m.content_md ?? "",
-      status: m.status,
-    });
+    setForm({ slug: m.slug, title: m.title, tajwid_rule_code: m.tajwid_rule ?? "", content_md: m.content_md ?? "", status: m.status });
     setShowForm(true);
   }
 
@@ -157,7 +136,13 @@ export default function MateriPage() {
 
   async function archive(m: Material) {
     try {
-      await apiPatch(`/learning/materials/${m.id}`, { ...form, status: "ARCHIVED" });
+      await apiPatch(`/learning/materials/${m.id}`, {
+        slug: m.slug,
+        title: m.title,
+        tajwid_rule_code: m.tajwid_rule,
+        content_md: m.content_md ?? "",
+        status: "ARCHIVED",
+      });
       toast.success("Materi diarsipkan");
       load();
     } catch (e) {
@@ -167,52 +152,58 @@ export default function MateriPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Materi Pembelajaran</h1>
-          <p className="text-sm text-muted-foreground">
-            Materi tajwid & pembelajaran (markdown)
-          </p>
-        </div>
-        <Button onClick={openCreate}>
-          <Plus className="size-4" /> Materi Baru
-        </Button>
-      </div>
+      <PageHeader
+        title="Materi Pembelajaran"
+        total={items.length}
+        totalSuffix="materi"
+        subtitle="Materi tajwid & pembelajaran (markdown) untuk santri"
+        actions={
+          <Button onClick={openCreate}>
+            <Plus className="size-4" /> Materi Baru
+          </Button>
+        }
+      />
 
-      <div className="rounded-lg border">
+      <Toolbar>
+        <SearchInput value={q} onChange={setQ} placeholder="Cari judul / slug…" />
+        <Select value={filter} onValueChange={(v) => setFilter(v ?? "ALL")}>
+          <SelectTrigger className="w-40">
+            <SelectValue placeholder="Semua status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="ALL">Semua status</SelectItem>
+            {STATUS_ORDER.map((s) => (
+              <SelectItem key={s} value={s}>
+                {statusLabel(s)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <RefreshButton onClick={load} />
+      </Toolbar>
+
+      <TableShell>
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-12">ID</TableHead>
-              <TableHead>Judul</TableHead>
-              <TableHead>Slug</TableHead>
-              <TableHead>Rule Tajwid</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Published</TableHead>
-              <TableHead className="text-right">Aksi</TableHead>
+              <SortHead label="ID" col="id" sort={sort} order={order} onSort={toggleSort} className="w-12" />
+              <SortHead label="Judul" col="title" sort={sort} order={order} onSort={toggleSort} />
+              <SortHead label="Slug" col="slug" sort={sort} order={order} onSort={toggleSort} />
+              <Head label="Rule Tajwid" />
+              <SortHead label="Status" col="status" sort={sort} order={order} onSort={toggleSort} />
+              <SortHead label="Terbit" col="published_at" sort={sort} order={order} onSort={toggleSort} />
+              <Head label="" className="text-right" />
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
-              Array.from({ length: 3 }).map((_, i) => (
-                <TableRow key={i}>
-                  {Array.from({ length: 7 }).map((_, j) => (
-                    <TableCell key={j}>
-                      <Skeleton className="h-4 w-full" />
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
-            ) : items.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={7} className="py-8 text-center text-sm text-muted-foreground">
-                  Belum ada materi
-                </TableCell>
-              </TableRow>
+              <TableSkeleton rows={3} cols={COLS} />
+            ) : filtered.length === 0 ? (
+              <EmptyRow colSpan={COLS} message="Belum ada materi sesuai filter." />
             ) : (
-              items.map((m) => (
+              filtered.map((m) => (
                 <TableRow key={m.id}>
-                  <TableCell className="font-mono text-xs">{m.id}</TableCell>
+                  <TableCell className="font-mono text-xs text-muted-foreground">{m.id}</TableCell>
                   <TableCell className="text-sm font-medium">{m.title}</TableCell>
                   <TableCell className="font-mono text-xs text-muted-foreground">{m.slug}</TableCell>
                   <TableCell>
@@ -223,24 +214,16 @@ export default function MateriPage() {
                     )}
                   </TableCell>
                   <TableCell>
-                    <Badge variant={statusVariant[m.status] ?? "secondary"}>{m.status}</Badge>
+                    <StatusPill status={m.status} />
                   </TableCell>
-                  <TableCell className="text-xs text-muted-foreground">
-                    {m.published_at?.slice(0, 10) ?? "—"}
-                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{fmtDate(m.published_at)}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
                       <Button size="sm" variant="ghost" onClick={() => openEdit(m)} title="Edit">
                         <FileText className="size-4" />
                       </Button>
                       {m.status !== "ARCHIVED" && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="text-muted-foreground"
-                          onClick={() => archive(m)}
-                          title="Arsipkan"
-                        >
+                        <Button size="sm" variant="ghost" className="text-muted-foreground" onClick={() => archive(m)} title="Arsipkan">
                           <Archive className="size-4" />
                         </Button>
                       )}
@@ -251,10 +234,10 @@ export default function MateriPage() {
             )}
           </TableBody>
         </Table>
-      </div>
+      </TableShell>
 
       <Dialog open={showForm} onOpenChange={setShowForm}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editing ? `Edit: ${editing.title}` : "Materi Baru"}</DialogTitle>
           </DialogHeader>
@@ -270,19 +253,37 @@ export default function MateriPage() {
                 />
               </div>
               <div className="space-y-1">
-                <Label>Rule Tajwid (opsional)</Label>
-                <Select
-                  value={form.tajwid_rule_code || "none"}
-                  onValueChange={(v) => setForm({ ...form, tajwid_rule_code: v === "none" ? "" : (v ?? "") })}
-                >
+                <Label>Judul</Label>
+                <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>Rule Tajwid</Label>
+                <Select value={form.tajwid_rule_code || "umum"} onValueChange={(v) => setForm({ ...form, tajwid_rule_code: v === "umum" ? "" : (v ?? "") })}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Materi umum" />
+                    <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">Materi umum</SelectItem>
-                    {rules.map((r) => (
-                      <SelectItem key={r.id} value={r.code}>
-                        {r.name_id}
+                    <SelectItem value="umum">Umum</SelectItem>
+                    {TAJWID_RULES.map((r) => (
+                      <SelectItem key={r} value={r}>
+                        {r}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label>Status</Label>
+                <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v ?? "DRAFT" })}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {STATUS_ORDER.map((s) => (
+                      <SelectItem key={s} value={s}>
+                        {statusLabel(s)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -290,38 +291,22 @@ export default function MateriPage() {
               </div>
             </div>
             <div className="space-y-1">
-              <Label>Judul</Label>
-              <Input
-                placeholder="Pengenalan Tajwid"
-                value={form.title}
-                onChange={(e) => setForm({ ...form, title: e.target.value })}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>Konten (Markdown)</Label>
+              <Label>Isi (Markdown)</Label>
               <Textarea
-                placeholder={"## Apa itu Tajwid?\n\nTajwid adalah..."}
+                rows={12}
+                className="font-mono text-xs"
+                placeholder="# Pengenalan Tajwid…"
                 value={form.content_md}
                 onChange={(e) => setForm({ ...form, content_md: e.target.value })}
-                rows={12}
-                className="font-mono text-sm"
               />
             </div>
-            <div className="space-y-1">
-              <Label>Status</Label>
-              <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v ?? "DRAFT" })}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="DRAFT">Draft</SelectItem>
-                  <SelectItem value="PUBLISHED">Publish</SelectItem>
-                  <SelectItem value="ARCHIVED">Arsip</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <Button onClick={save} disabled={busy || !form.slug || !form.title || !form.content_md} className="w-full">
-              {busy ? "Menyimpan..." : editing ? "Simpan Perubahan" : "Buat Materi"}
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setShowForm(false)}>
+              Batal
+            </Button>
+            <Button disabled={busy || !form.slug.trim() || !form.title.trim()} onClick={save}>
+              {busy ? "Menyimpan…" : "Simpan"}
             </Button>
           </div>
         </DialogContent>

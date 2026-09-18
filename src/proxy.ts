@@ -46,6 +46,10 @@ export default async function proxy(req: NextRequest) {
   const headers = new Headers(req.headers);
   headers.delete("cookie");
   headers.delete("host");
+  // KRITIS: jangan teruskan accept-encoding browser — Cloudflare tunnel bisa membalas
+  // zstd/br yang TIDAK otomatis didekompres runtime fetch, sehingga body JSON sampai
+  // ke klien sebagai byte terkompresi (json parse gagal diam-diam). Paksa identity.
+  headers.delete("accept-encoding");
   const at = req.cookies.get(COOKIE_AT)?.value;
   const rt = req.cookies.get(COOKIE_RT)?.value;
   if (at) headers.set("authorization", `Bearer ${at}`);

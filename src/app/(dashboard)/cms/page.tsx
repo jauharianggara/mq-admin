@@ -1,59 +1,70 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { Plus, Trash2, FileText } from "lucide-react";
-import { apiGet, apiPost, apiPatch, apiDelete, ApiError } from "@/lib/api";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { FileText, Plus, Trash2 } from "lucide-react";
+import { apiDelete, apiGet, apiPatch, apiPost, ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
-import { toast } from "sonner";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { StatusPill } from "@/components/status-pill";
+import {
+  PageHeader,
+  Toolbar,
+  SearchInput,
+  RefreshButton,
+  TableShell,
+  SortHead,
+  Head,
+  TableSkeleton,
+  EmptyRow,
+} from "@/components/data-table";
 import {
   Table,
   TableBody,
   TableCell,
-  TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
 
 type Entity = "articles" | "banners" | "announcements" | "faqs";
+type FieldType = "text" | "textarea" | "number" | "date" | "boolean";
 
-interface CmsItem {
-  id: number;
-  [key: string]: unknown;
+interface FieldConfig {
+  key: string;
+  label: string;
+  type: FieldType;
 }
 
-const entityConfig: Record<Entity, { label: string; fields: { key: string; label: string; type: "text" | "textarea" | "number" | "select"; options?: string[] }[]; listColumns: string[] }> = {
+// Field = kolom SKEMA DB (bukan istilah bebas) — create/update BE whitelist kolom ini.
+const entityConfig: Record<Entity, { label: string; fields: FieldConfig[]; listColumns: string[] }> = {
   articles: {
     label: "Artikel",
     fields: [
-      { key: "slug", label: "Slug", type: "text" },
       { key: "title", label: "Judul", type: "text" },
-      { key: "excerpt", label: "Ringkasan", type: "text" },
-      { key: "content_html", label: "Konten (HTML)", type: "textarea" },
-      { key: "status", label: "Status", type: "select", options: ["DRAFT", "PUBLISHED", "ARCHIVED"] },
-      { key: "reading_minutes", label: "Menit Baca", type: "number" },
+      { key: "slug", label: "Slug", type: "text" },
+      { key: "excerpt", label: "Ringkasan", type: "textarea" },
+      { key: "content_html", label: "Isi (HTML)", type: "textarea" },
+      { key: "status", label: "Status (PUBLISHED/DRAFT)", type: "text" },
+      { key: "reading_minutes", label: "Menit baca", type: "number" },
+      { key: "category_id", label: "ID kategori (ops.)", type: "number" },
     ],
-    listColumns: ["title", "slug", "status"],
+    listColumns: ["title", "slug", "status", "reading_minutes"],
   },
   banners: {
     label: "Banner",
     fields: [
       { key: "title", label: "Judul", type: "text" },
-      { key: "position", label: "Posisi", type: "select", options: ["HOME_TOP", "HOME_MID", "KHOTMIL_TOP"] },
-      { key: "target_type", label: "Target Type", type: "select", options: ["URL", "DEEPLINK"] },
-      { key: "target_value", label: "Target URL/Link", type: "text" },
+      { key: "position", label: "Posisi", type: "text" },
       { key: "sort_order", label: "Urutan", type: "number" },
+      { key: "target_type", label: "Jenis tautan", type: "text" },
+      { key: "target_value", label: "Tautan/nilai", type: "text" },
+      { key: "image_media_id", label: "ID media gambar", type: "number" },
+      { key: "is_active", label: "Aktif", type: "boolean" },
     ],
     listColumns: ["title", "position", "sort_order"],
   },
@@ -62,7 +73,8 @@ const entityConfig: Record<Entity, { label: string; fields: { key: string; label
     fields: [
       { key: "title", label: "Judul", type: "text" },
       { key: "body", label: "Isi", type: "textarea" },
-      { key: "level", label: "Level", type: "select", options: ["INFO", "WARNING", "CRITICAL"] },
+      { key: "level", label: "Level (INFO/WARN)", type: "text" },
+      { key: "is_active", label: "Aktif", type: "boolean" },
     ],
     listColumns: ["title", "level"],
   },
@@ -72,52 +84,73 @@ const entityConfig: Record<Entity, { label: string; fields: { key: string; label
       { key: "question", label: "Pertanyaan", type: "text" },
       { key: "answer", label: "Jawaban", type: "textarea" },
       { key: "sort_order", label: "Urutan", type: "number" },
+      { key: "is_active", label: "Aktif", type: "boolean" },
     ],
-    listColumns: ["question", "answer"],
+    listColumns: ["question", "sort_order"],
   },
 };
+
+type CmsItem = Record<string, unknown> & { id: number };
 
 export default function CmsPage() {
   const [entity, setEntity] = useState<Entity>("articles");
   const [items, setItems] = useState<CmsItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [q, setQ] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<CmsItem | null>(null);
-  const [busy, setBusy] = useState(false);
   const [form, setForm] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState(false);
+  // sort client-side per tab
+  const [sort, setSort] = useState<string | null>(null);
+  const [order, setOrder] = useState<"asc" | "desc">("asc");
 
   const load = useCallback(
-    async (e: Entity) => {
+    async (e: Entity = entity) => {
       setLoading(true);
       try {
-        // publik endpoints utk list; admin lihat semua
-        const endpoints: Record<Entity, string> = {
-          articles: "/cms/articles",
-          banners: "/cms/banners",
-          announcements: "/cms/announcements",
-          faqs: "/cms/faqs",
-        };
-        const list = await apiGet<CmsItem[]>(endpoints[e]);
-        setItems(list);
+        setItems(await apiGet<CmsItem[]>(`/admin/cms/${e}`));
       } catch (err) {
         toast.error(err instanceof ApiError ? err.message : "Gagal memuat");
       } finally {
         setLoading(false);
       }
     },
-    [],
+    [entity],
   );
 
   useEffect(() => {
     load(entity);
-  }, [entity, load]);
+    setSort(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entity]);
+
+  function toggleSort(col: string) {
+    if (sort !== col) { setSort(col); setOrder("asc"); }
+    else if (order === "asc") { setOrder("desc"); }
+    else { setSort(null); setOrder("asc"); }
+  }
+
+  const filtered = useMemo(() => {
+    const s = q.trim().toLowerCase();
+    const out = s
+      ? items.filter((it) =>
+          entityConfig[entity].listColumns.some((c) => String(it[c] ?? "").toLowerCase().includes(s)),
+        )
+      : items;
+    if (!sort) return out;
+    const dir = order === "asc" ? 1 : -1;
+    return [...out].sort((a, b) => {
+      const va = String(a[sort] ?? "").toLowerCase();
+      const vb = String(b[sort] ?? "").toLowerCase();
+      return va.localeCompare(vb) * dir;
+    });
+  }, [items, q, entity, sort, order]);
 
   function openCreate() {
-    setEditing(null);
     const initial: Record<string, string> = {};
-    for (const f of entityConfig[entity].fields) {
-      initial[f.key] = f.type === "number" ? "0" : f.type === "select" ? (f.options?.[0] ?? "") : "";
-    }
+    for (const f of entityConfig[entity].fields) initial[f.key] = "";
+    setEditing(null);
     setForm(initial);
     setShowForm(true);
   }
@@ -126,7 +159,7 @@ export default function CmsPage() {
     setEditing(item);
     const initial: Record<string, string> = {};
     for (const f of entityConfig[entity].fields) {
-      initial[f.key] = String(item[f.key] ?? "");
+      initial[f.key] = f.type === "boolean" ? (item[f.key] ? "1" : "0") : String(item[f.key] ?? "");
     }
     setForm(initial);
     setShowForm(true);
@@ -138,7 +171,9 @@ export default function CmsPage() {
       const body: Record<string, unknown> = {};
       for (const f of entityConfig[entity].fields) {
         if (f.type === "number") {
-          body[f.key] = Number(form[f.key]) || 0;
+          body[f.key] = form[f.key] ? Number(form[f.key]) : null;
+        } else if (f.type === "boolean") {
+          body[f.key] = form[f.key] === "1";
         } else {
           body[f.key] = form[f.key] || null;
         }
@@ -160,6 +195,7 @@ export default function CmsPage() {
   }
 
   async function remove(item: CmsItem) {
+    if (!confirm(`Hapus ${entityConfig[entity].label.toLowerCase()} "${String(item[entityConfig[entity].listColumns[0]])}"?`)) return;
     try {
       await apiDelete(`/admin/cms/${entity}/${item.id}`);
       toast.success("Dihapus");
@@ -173,10 +209,10 @@ export default function CmsPage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">CMS</h1>
-        <p className="text-sm text-muted-foreground">Artikel, banner, pengumuman & FAQ</p>
-      </div>
+      <PageHeader
+        title="CMS"
+        subtitle="Artikel, banner, pengumuman & FAQ untuk aplikasi santri"
+      />
 
       <Tabs value={entity} onValueChange={(v) => setEntity(v as Entity)}>
         <TabsList>
@@ -189,55 +225,67 @@ export default function CmsPage() {
 
         {(Object.keys(entityConfig) as Entity[]).map((e) => (
           <TabsContent key={e} value={e} className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="text-sm text-muted-foreground">
-                {items.length} {entityConfig[e].label.toLowerCase()}
-              </div>
-              <Button size="sm" onClick={openCreate}>
+            <Toolbar>
+              <SearchInput
+                value={e === entity ? q : ""}
+                onChange={setQ}
+                placeholder={`Cari ${entityConfig[e].label.toLowerCase()}…`}
+              />
+              <span className="text-sm text-muted-foreground">
+                {e === entity ? filtered.length : ""} {entityConfig[e].label.toLowerCase()}
+              </span>
+              <Button variant="outline" size="sm" onClick={() => load()} title="Muat ulang">
+                ↻
+              </Button>
+              <Button onClick={openCreate}>
                 <Plus className="size-4" /> Tambah
               </Button>
-            </div>
+            </Toolbar>
 
-            <div className="rounded-lg border">
+            <TableShell>
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-12">ID</TableHead>
+                    <Head label="ID" className="w-12" />
                     {entityConfig[e].listColumns.map((col) => (
-                      <TableHead key={col}>{col.replace(/_/g, " ")}</TableHead>
+                      <SortHead
+                        key={col}
+                        label={col.replace(/_/g, " ")}
+                        col={col}
+                        sort={e === entity ? sort : null}
+                        order={order}
+                        onSort={toggleSort}
+                      />
                     ))}
-                    <TableHead className="text-right">Aksi</TableHead>
+                    <Head label="" className="text-right" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {loading ? (
-                    Array.from({ length: 3 }).map((_, i) => (
-                      <TableRow key={i}>
-                        <TableCell><Skeleton className="h-4 w-8" /></TableCell>
-                        {entityConfig[e].listColumns.map((col) => (
-                          <TableCell key={col}><Skeleton className="h-4 w-full" /></TableCell>
-                        ))}
-                        <TableCell><Skeleton className="h-4 w-16" /></TableCell>
-                      </TableRow>
-                    ))
-                  ) : items.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={entityConfig[e].listColumns.length + 2} className="py-8 text-center text-sm text-muted-foreground">
-                        Belum ada {entityConfig[e].label.toLowerCase()}
-                      </TableCell>
-                    </TableRow>
+                  {loading && e === entity ? (
+                    <TableSkeleton rows={3} cols={entityConfig[e].listColumns.length + 2} />
+                  ) : e === entity && filtered.length === 0 ? (
+                    <EmptyRow
+                      colSpan={entityConfig[e].listColumns.length + 2}
+                      message={`Belum ada ${entityConfig[e].label.toLowerCase()}.`}
+                    />
                   ) : (
-                    items.map((item) => (
+                    e === entity &&
+                    filtered.map((item) => (
                       <TableRow key={item.id}>
-                        <TableCell className="font-mono text-xs">{item.id}</TableCell>
+                        <TableCell className="font-mono text-xs text-muted-foreground">{item.id}</TableCell>
                         {entityConfig[e].listColumns.map((col) => {
                           const val = item[col];
                           if (col === "status") {
                             return (
                               <TableCell key={col}>
-                                <Badge variant={val === "PUBLISHED" || val === "INFO" ? "default" : "secondary"}>
-                                  {String(val)}
-                                </Badge>
+                                <StatusPill status={String(val)} />
+                              </TableCell>
+                            );
+                          }
+                          if (col === "is_active") {
+                            return (
+                              <TableCell key={col}>
+                                <Badge variant={val ? "default" : "secondary"}>{val ? "Aktif" : "Nonaktif"}</Badge>
                               </TableCell>
                             );
                           }
@@ -262,40 +310,42 @@ export default function CmsPage() {
                   )}
                 </TableBody>
               </Table>
-            </div>
+            </TableShell>
           </TabsContent>
         ))}
       </Tabs>
 
       <Dialog open={showForm} onOpenChange={setShowForm}>
-        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {editing ? `Edit ${config.label}` : `${config.label} Baru`}
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-3">
+          <div className="space-y-4">
             {config.fields.map((f) => (
               <div key={f.key} className="space-y-1">
                 <Label>{f.label}</Label>
                 {f.type === "textarea" ? (
-                  <Textarea
+                  <textarea
+                    className="flex min-h-20 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    rows={4}
                     value={form[f.key] ?? ""}
                     onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
-                    rows={f.key === "content_html" || f.key === "body" ? 8 : 3}
                   />
-                ) : f.type === "select" ? (
-                  <select
-                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm"
-                    value={form[f.key] ?? ""}
-                    onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
+                ) : f.type === "boolean" ? (
+                  <Select
+                    value={form[f.key] === "1" ? "1" : "0"}
+                    onValueChange={(v) => setForm({ ...form, [f.key]: v ?? "0" })}
                   >
-                    {f.options?.map((opt) => (
-                      <option key={opt} value={opt}>
-                        {opt}
-                      </option>
-                    ))}
-                  </select>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">Aktif</SelectItem>
+                      <SelectItem value="0">Nonaktif</SelectItem>
+                    </SelectContent>
+                  </Select>
                 ) : (
                   <Input
                     type={f.type === "number" ? "number" : "text"}
@@ -305,8 +355,13 @@ export default function CmsPage() {
                 )}
               </div>
             ))}
-            <Button onClick={save} disabled={busy} className="w-full">
-              {busy ? "Menyimpan..." : editing ? "Simpan" : "Buat"}
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setShowForm(false)}>
+              Batal
+            </Button>
+            <Button disabled={busy} onClick={save}>
+              {busy ? "Menyimpan…" : "Simpan"}
             </Button>
           </div>
         </DialogContent>

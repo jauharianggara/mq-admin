@@ -4,8 +4,17 @@ import { useCallback, useEffect, useState } from "react";
 import { apiGet, apiGetPage, apiPost, ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
+import {
+  PageHeader,
+  Toolbar,
+  RefreshButton,
+  TableShell,
+  Head,
+  TableSkeleton,
+  EmptyRow,
+} from "@/components/data-table";
+import { StatusPill } from "@/components/status-pill";
 import {
   Dialog,
   DialogContent,
@@ -52,14 +61,7 @@ interface Thread {
   messages: MessageOut[];
 }
 
-const statusColor: Record<string, string> = {
-  PUBLISH_REQUESTED: "bg-amber-100 text-amber-800",
-  PUBLISHED: "bg-emerald-100 text-emerald-800",
-  REJECTED: "bg-red-100 text-red-800",
-  QUEUED: "bg-gray-100 text-gray-700",
-  ANSWERED: "bg-blue-100 text-blue-800",
-  CLOSED: "bg-gray-100 text-gray-400",
-};
+// pewarnaan status dipusatkan di components/status-pill (kit)
 
 export default function TanyaPage() {
   const [items, setItems] = useState<QuestionOut[]>([]);
@@ -110,43 +112,33 @@ export default function TanyaPage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Tanya Ustadz — Moderasi</h1>
-        <p className="text-sm text-muted-foreground">
-          Antrean publikasi jawaban (PUBLISH_REQUESTED) & pertanyaan menunggu
-        </p>
-      </div>
+      <PageHeader
+        title="Tanya Ustadz — Moderasi"
+        subtitle="Antrean publikasi jawaban (minta tayang) & pertanyaan menunggu — klik baris untuk buka utas"
+      />
 
-      <div className="rounded-lg border">
+      <Toolbar>
+        <RefreshButton onClick={load} />
+      </Toolbar>
+
+      <TableShell>
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-12">ID</TableHead>
-              <TableHead>Judul</TableHead>
-              <TableHead>Kategori</TableHead>
-              <TableHead>Penanya</TableHead>
-              <TableHead>Ustadz</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right"></TableHead>
+              <Head label="ID" className="w-12" />
+              <Head label="Judul" />
+              <Head label="Kategori" />
+              <Head label="Penanya" />
+              <Head label="Ustadz" />
+              <Head label="Status" />
+              <Head label="" className="text-right" />
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
-              Array.from({ length: 4 }).map((_, i) => (
-                <TableRow key={i}>
-                  {Array.from({ length: 7 }).map((_, j) => (
-                    <TableCell key={j}>
-                      <Skeleton className="h-4 w-full" />
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
+              <TableSkeleton rows={4} cols={7} />
             ) : items.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={7} className="py-8 text-center text-sm text-muted-foreground">
-                  Antrean moderasi kosong
-                </TableCell>
-              </TableRow>
+              <EmptyRow colSpan={7} message="Antrean moderasi kosong" />
             ) : (
               items.map((q) => (
                 <TableRow key={q.id} className="cursor-pointer" onClick={() => openThread(q.id)}>
@@ -160,20 +152,14 @@ export default function TanyaPage() {
                   </TableCell>
                   <TableCell className="text-sm">{q.assigned_ustadz_name ?? "—"}</TableCell>
                   <TableCell>
-                    <span
-                      className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
-                        statusColor[q.status] ?? "bg-gray-100"
-                      }`}
-                    >
-                      {q.status}
-                    </span>
+                    <StatusPill status={q.status} />
                   </TableCell>
                 </TableRow>
               ))
             )}
           </TableBody>
         </Table>
-      </div>
+      </TableShell>
 
       <Dialog open={!!thread} onOpenChange={(o) => !o && setThread(null)}>
         <DialogContent className="max-w-xl max-h-[80vh] overflow-y-auto">
@@ -193,9 +179,7 @@ export default function TanyaPage() {
                   <span>
                     Ustadz: <b>{thread.question.assigned_ustadz_name ?? "—"}</b>
                   </span>
-                  <Badge className={statusColor[thread.question.status]}>
-                    {thread.question.status}
-                  </Badge>
+                  <StatusPill status={thread.question.status} />
                 </div>
                 <div className="space-y-2">
                   {thread.messages.map((m) => (

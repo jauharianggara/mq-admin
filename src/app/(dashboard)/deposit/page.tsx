@@ -1,35 +1,33 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { ArrowLeft, Plus, RefreshCw, Search } from "lucide-react";
+import { ArrowLeft, Plus } from "lucide-react";
 import { apiGet, apiGetPage, apiPost, ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  PageHeader,
+  Toolbar,
+  SearchInput,
+  RefreshButton,
+  TableShell,
+  Head,
+  TableSkeleton,
+  EmptyRow,
+  Pager,
+} from "@/components/data-table";
+import { StatusPill, statusLabel } from "@/components/status-pill";
+import { useAdminList } from "@/hooks/use-admin-list";
+import { rp, fmtDateTime } from "@/lib/format";
 import {
   Table,
   TableBody,
   TableCell,
-  TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
@@ -71,77 +69,61 @@ const txLabel: Record<string, string> = {
   ADJUST: "Penyesuaian saldo",
 };
 
-const txColor: Record<string, string> = {
-  TOPUP: "text-green-600",
-  REFUND: "text-green-600",
-  EARNING: "text-green-600",
-  PAYMENT: "text-red-600",
-  PAYOUT: "text-red-600",
+const txCredit: Record<string, boolean> = {
+  TOPUP: true,
+  REFUND: true,
+  EARNING: true,
+  PAYMENT: false,
+  PAYOUT: false,
 };
 
-const adjColor: Record<string, string> = {
-  PENDING: "bg-amber-100 text-amber-700",
-  ACCEPTED: "bg-green-100 text-green-700",
-  REJECTED: "bg-red-100 text-red-700",
-};
-
-function rp(n: number) {
-  return "Rp " + n.toLocaleString("id-ID");
-}
-
-function fmt(iso: string | null) {
-  if (!iso) return "-";
-  return new Date(iso).toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "short" });
-}
+const ADJ_STATUS = ["PENDING", "ACCEPTED", "REJECTED"];
 
 export default function DepositPage() {
   const [tab, setTab] = useState<"SANTRI" | "USTADZ" | "ADJ">("SANTRI");
   const [q, setQ] = useState("");
   const [rows, setRows] = useState<BalanceRow[]>([]);
   const [loading, setLoading] = useState(true);
-  // detail user terpilih
   const [selected, setSelected] = useState<BalanceRow | null>(null);
   const [txs, setTxs] = useState<Tx[]>([]);
   const [txLoading, setTxLoading] = useState(false);
-  // monitoring penyesuaian
-  const [adjs, setAdjs] = useState<Adjustment[]>([]);
-  const [adjFilter, setAdjFilter] = useState<string>("ALL");
-  // dialog ajukan penyesuaian
   const [adjOpen, setAdjOpen] = useState(false);
   const [adjAmount, setAdjAmount] = useState("");
   const [adjReason, setAdjReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  const [adjFilter, setAdjFilter] = useState("ALL");
+  const adjList = useAdminList<Adjustment>("/admin/wallet-adjustments", {
+    params: { status: adjFilter === "ALL" ? undefined : adjFilter },
+    limit: 50,
+  });
+
   const load = useCallback(async () => {
+    if (tab === "ADJ") {
+      adjList.reload();
+      return;
+    }
     setLoading(true);
     try {
-      if (tab === "ADJ") {
-        const qs = new URLSearchParams();
-        if (adjFilter !== "ALL") qs.set("status", adjFilter);
-        const qstr = qs.toString();
-        const d = await apiGetPage<Adjustment>(
-          `/admin/wallet-adjustments${qstr ? `?${qstr}` : ""}`
-        );
-        setAdjs(d.items);
-      } else {
-        const qs = new URLSearchParams({ role: tab });
-        if (q.trim()) qs.set("q", q.trim());
-        const d = await apiGet<{ items: BalanceRow[] }>(
-          `/admin/wallet?${qs.toString()}`
-        );
-        setRows(d.items ?? []);
-      }
+      const qs = new URLSearchParams({ role: tab });
+      if (q.trim()) qs.set("q", q.trim());
+      const d = await apiGet<{ items: BalanceRow[] }>(`/admin/wallet?${qs.toString()}`);
+      setRows(d.items ?? []);
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : "Gagal memuat data saldo");
     } finally {
       setLoading(false);
     }
-  }, [tab, q, adjFilter]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, q]);
 
   useEffect(() => {
-    if (tab !== "ADJ") setSelected(null);
-    load();
-  }, [load, tab]);
+    if (tab !== "ADJ") {
+      setSelected(null);
+      load();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, q]);
 
   async function openUser(row: BalanceRow) {
     setSelected(row);
@@ -173,9 +155,7 @@ export default function DepositPage() {
         amount,
         reason: adjReason.trim(),
       });
-      toast.success(
-        "Penyesuaian diajukan — menunggu ACC santri/ustadz di aplikasi (saldo belum berubah)"
-      );
+      toast.success("Penyesuaian diajukan — menunggu ACC santri/ustadz di aplikasi (saldo belum berubah)");
       setAdjOpen(false);
       setAdjAmount("");
       setAdjReason("");
@@ -188,78 +168,62 @@ export default function DepositPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h1 className="text-2xl font-semibold">Saldo & Mutasi</h1>
-          <p className="text-sm text-muted-foreground">
-            Deposit santri & penghasilan ustadz. Saldo hanya berubah melalui mutasi — koreksi
-            membutuhkan ACC pihak terkait di aplikasi.
-          </p>
-        </div>
-        <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
-          <TabsList>
-            <TabsTrigger value="SANTRI">Saldo Santri</TabsTrigger>
-            <TabsTrigger value="USTADZ">Saldo Ustadz</TabsTrigger>
-            <TabsTrigger value="ADJ">Penyesuaian</TabsTrigger>
-          </TabsList>
-        </Tabs>
-      </div>
+      <PageHeader
+        title="Saldo & Mutasi"
+        subtitle="Deposit santri & penghasilan ustadz. Saldo hanya berubah melalui mutasi — koreksi membutuhkan ACC pihak terkait di aplikasi."
+        actions={
+          <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
+            <TabsList>
+              <TabsTrigger value="SANTRI">Saldo Santri</TabsTrigger>
+              <TabsTrigger value="USTADZ">Saldo Ustadz</TabsTrigger>
+              <TabsTrigger value="ADJ">Penyesuaian</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        }
+      />
 
       {tab === "ADJ" ? (
         <>
-          <div className="flex items-center gap-2">
-            <Select
-              value={adjFilter}
-              onValueChange={(v) => setAdjFilter(v ?? "ALL")}
-            >
-              <SelectTrigger className="w-40">
+          <Toolbar>
+            <Select value={adjFilter} onValueChange={(v) => setAdjFilter(v ?? "ALL")}>
+              <SelectTrigger className="w-44">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="ALL">Semua status</SelectItem>
-                <SelectItem value="PENDING">Menunggu ACC</SelectItem>
-                <SelectItem value="ACCEPTED">Disetujui</SelectItem>
-                <SelectItem value="REJECTED">Ditolak</SelectItem>
+                {ADJ_STATUS.map((s) => (
+                  <SelectItem key={s} value={s}>
+                    {statusLabel(s)}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
-            <Button variant="outline" onClick={load}>
-              <RefreshCw className="h-4 w-4" />
-            </Button>
-          </div>
-          <div className="rounded-lg border">
+            <RefreshButton onClick={adjList.reload} />
+          </Toolbar>
+          <TableShell>
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>#</TableHead>
-                  <TableHead>Pemilik Saldo</TableHead>
-                  <TableHead className="text-right">Nominal</TableHead>
-                  <TableHead>Alasan</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Diajukan</TableHead>
-                  <TableHead>Diproses</TableHead>
+                  <Head label="No." className="w-12" />
+                  <Head label="Pemilik Saldo" />
+                  <Head label="Nominal" className="text-right" />
+                  <Head label="Alasan" />
+                  <Head label="Status" />
+                  <Head label="Diajukan" />
+                  <Head label="Diproses" />
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {loading ? (
-                  <TableRow>
-                    <TableCell colSpan={7}>
-                      <Skeleton className="h-8 w-full" />
-                    </TableCell>
-                  </TableRow>
-                ) : adjs.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="py-10 text-center text-muted-foreground">
-                      Belum ada penyesuaian.
-                    </TableCell>
-                  </TableRow>
+                {adjList.loading && adjList.items.length === 0 ? (
+                  <TableSkeleton rows={4} cols={7} />
+                ) : adjList.items.length === 0 ? (
+                  <EmptyRow colSpan={7} message="Belum ada penyesuaian." />
                 ) : (
-                  adjs.map((a) => (
+                  adjList.items.map((a) => (
                     <TableRow key={a.id}>
-                      <TableCell className="text-muted-foreground">{a.id}</TableCell>
+                      <TableCell className="font-mono text-xs text-muted-foreground">{a.id}</TableCell>
                       <TableCell className="font-medium">{a.user_name}</TableCell>
-                      <TableCell
-                        className={`text-right font-semibold ${a.amount > 0 ? "text-green-600" : "text-red-600"}`}
-                      >
+                      <TableCell className={`whitespace-nowrap text-right font-semibold ${a.amount > 0 ? "text-green-600" : "text-red-600"}`}>
                         {a.amount > 0 ? "+" : ""}
                         {rp(a.amount)}
                       </TableCell>
@@ -267,18 +231,17 @@ export default function DepositPage() {
                         <span className="line-clamp-2 text-sm">{a.reason}</span>
                       </TableCell>
                       <TableCell>
-                        <Badge variant="secondary" className={adjColor[a.status] ?? ""}>
-                          {a.status === "PENDING" ? "Menunggu ACC" : a.status}
-                        </Badge>
+                        <StatusPill status={a.status} />
                       </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">{fmt(a.created_at)}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">{fmt(a.handled_at)}</TableCell>
+                      <TableCell className="whitespace-nowrap text-sm text-muted-foreground">{fmtDateTime(a.created_at)}</TableCell>
+                      <TableCell className="whitespace-nowrap text-sm text-muted-foreground">{fmtDateTime(a.handled_at)}</TableCell>
                     </TableRow>
                   ))
                 )}
               </TableBody>
             </Table>
-          </div>
+          </TableShell>
+          <Pager page={adjList.page} hasMore={adjList.hasMore} loading={adjList.loading} onPrev={adjList.goPrev} onNext={adjList.goNext} />
         </>
       ) : selected ? (
         <>
@@ -287,9 +250,7 @@ export default function DepositPage() {
           </Button>
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/40 p-5">
             <div>
-              <p className="text-sm text-muted-foreground">
-                Saldo {tab === "SANTRI" ? "santri" : "ustadz"}
-              </p>
+              <p className="text-sm text-muted-foreground">Saldo {tab === "SANTRI" ? "santri" : "ustadz"}</p>
               <p className="text-3xl font-bold">{selected.full_name}</p>
             </div>
             <div className="text-right">
@@ -300,93 +261,71 @@ export default function DepositPage() {
               <Plus className="mr-1 h-4 w-4" /> Ajukan Penyesuaian
             </Button>
           </div>
-          <div className="rounded-lg border">
+          <TableShell>
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>#</TableHead>
-                  <TableHead>Jenis</TableHead>
-                  <TableHead className="text-right">Nominal</TableHead>
-                  <TableHead className="text-right">Saldo setelah</TableHead>
-                  <TableHead>Rujukan</TableHead>
-                  <TableHead>Waktu</TableHead>
+                  <Head label="No." className="w-12" />
+                  <Head label="Jenis" />
+                  <Head label="Nominal" className="text-right" />
+                  <Head label="Saldo setelah" className="text-right" />
+                  <Head label="Rujukan" />
+                  <Head label="Waktu" />
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {txLoading ? (
-                  <TableRow>
-                    <TableCell colSpan={6}>
-                      <Skeleton className="h-8 w-full" />
-                    </TableCell>
-                  </TableRow>
+                  <TableSkeleton rows={4} cols={6} />
                 ) : txs.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={6} className="py-10 text-center text-muted-foreground">
-                      Belum ada mutasi.
-                    </TableCell>
-                  </TableRow>
+                  <EmptyRow colSpan={6} message="Belum ada mutasi." />
                 ) : (
-                  txs.map((t) => (
-                    <TableRow key={t.id}>
-                      <TableCell className="text-muted-foreground">{t.id}</TableCell>
-                      <TableCell>{txLabel[t.tx_type] ?? t.tx_type}</TableCell>
-                      <TableCell className={`text-right font-semibold ${txColor[t.tx_type] ?? ""}`}>
-                        {txColor[t.tx_type] === "text-green-600" ? "+" : "-"}
-                        {rp(t.amount)}
-                      </TableCell>
-                      <TableCell className="text-right">{rp(t.balance_after)}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
-                        {t.subject_type ? `${t.subject_type} #${t.subject_id}` : "-"}
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">{fmt(t.created_at)}</TableCell>
-                    </TableRow>
-                  ))
+                  txs.map((t) => {
+                    const credit = txCredit[t.tx_type];
+                    return (
+                      <TableRow key={t.id}>
+                        <TableCell className="font-mono text-xs text-muted-foreground">{t.id}</TableCell>
+                        <TableCell className="text-sm">{txLabel[t.tx_type] ?? t.tx_type}</TableCell>
+                        <TableCell className={`whitespace-nowrap text-right font-semibold ${credit ? "text-green-600" : "text-red-600"}`}>
+                          {credit ? "+" : "-"}
+                          {rp(t.amount)}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap text-right">{rp(t.balance_after)}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {t.subject_type ? `${t.subject_type} #${t.subject_id}` : "-"}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap text-sm text-muted-foreground">{fmtDateTime(t.created_at)}</TableCell>
+                      </TableRow>
+                    );
+                  })
                 )}
               </TableBody>
             </Table>
-          </div>
+          </TableShell>
         </>
       ) : (
         <>
-          <div className="flex items-center gap-2">
-            <div className="relative flex-1 max-w-sm">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder={`Cari nama ${tab === "SANTRI" ? "santri" : "ustadz"}…`}
-                className="pl-8"
-                onKeyDown={(e) => e.key === "Enter" && load()}
-              />
-            </div>
-            <Button variant="outline" onClick={load}>
-              <RefreshCw className="h-4 w-4" />
-            </Button>
-          </div>
-          <div className="rounded-lg border">
+          <Toolbar>
+            <SearchInput
+              value={q}
+              onChange={setQ}
+              placeholder={`Cari nama ${tab === "SANTRI" ? "santri" : "ustadz"}…`}
+            />
+            <RefreshButton onClick={load} />
+          </Toolbar>
+          <TableShell>
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Pengguna</TableHead>
-                  <TableHead className="text-right">Saldo</TableHead>
-                  <TableHead className="text-right">Aksi</TableHead>
+                  <Head label="Pengguna" />
+                  <Head label="Saldo" className="text-right" />
+                  <Head label="" className="text-right" />
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
-                  Array.from({ length: 5 }).map((_, i) => (
-                    <TableRow key={i}>
-                      <TableCell colSpan={3}>
-                        <Skeleton className="h-6 w-full" />
-                      </TableCell>
-                    </TableRow>
-                  ))
+                  <TableSkeleton rows={5} cols={3} />
                 ) : rows.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={3} className="py-10 text-center text-muted-foreground">
-                      Tidak ditemukan.
-                    </TableCell>
-                  </TableRow>
+                  <EmptyRow colSpan={3} message="Tidak ditemukan." />
                 ) : (
                   rows.map((r) => (
                     <TableRow key={r.user_id} className="hover:bg-muted/50">
@@ -404,7 +343,7 @@ export default function DepositPage() {
                 )}
               </TableBody>
             </Table>
-          </div>
+          </TableShell>
         </>
       )}
 
@@ -413,9 +352,8 @@ export default function DepositPage() {
           <DialogHeader>
             <DialogTitle>Ajukan Penyesuaian Saldo</DialogTitle>
             <DialogDescription>
-              {selected?.full_name} akan menerima notifikasi dan harus{" "}
-              <strong>menyetujui di aplikasi</strong> sebelum saldo berubah. Penolakan membatalkan
-              penyesuaian.
+              {selected?.full_name} akan menerima notifikasi dan harus <strong>menyetujui di aplikasi</strong> sebelum
+              saldo berubah. Penolakan membatalkan penyesuaian.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">

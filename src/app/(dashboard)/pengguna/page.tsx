@@ -1,29 +1,34 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, ChevronLeft, ChevronRight } from "lucide-react";
-import { apiGet, apiGetPage, apiPatch, ApiError } from "@/lib/api";
+import { apiGet, apiPatch } from "@/lib/api";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  PageHeader,
+  Toolbar,
+  SearchInput,
+  RefreshButton,
+  TableShell,
+  SortHead,
+  Head,
+  TableSkeleton,
+  EmptyRow,
+  Pager,
+} from "@/components/data-table";
+import { StatusPill } from "@/components/status-pill";
+import { useAdminList } from "@/hooks/use-admin-list";
+import { fmtDateTime } from "@/lib/format";
 import {
   Table,
   TableBody,
   TableCell,
-  TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 
 interface AdminUser {
   id: number;
@@ -35,56 +40,27 @@ interface AdminUser {
   last_login_at: string | null;
   full_name?: string | null;
   city?: string | null;
-  pendidikan_terakhir?: string | null;
-  point?: { lat: number | null; lng: number | null; label: string | null } | null;
 }
 
-const statusVariant: Record<string, string> = {
-  ACTIVE: "bg-emerald-100 text-emerald-800",
-  PENDING_VERIFICATION: "bg-amber-100 text-amber-800",
-  SUSPENDED: "bg-red-100 text-red-800",
-  DEACTIVATED: "bg-gray-100 text-gray-600",
-  DELETED: "bg-gray-100 text-gray-400",
-};
+const COLS = 8;
 
 export default function PenggunaPage() {
   const router = useRouter();
-  const [items, setItems] = useState<AdminUser[]>([]);
-  const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
-  const [status, setStatus] = useState<string>("all");
-  const [role, setRole] = useState<string>("all");
-  const [cursor, setCursor] = useState<string | null>(null);
+  const [status, setStatus] = useState("all");
+  const [role, setRole] = useState("all");
   const [total, setTotal] = useState<number | null>(null);
-  const [hasMore, setHasMore] = useState(false);
-  const [error, setError] = useState("");
 
-  const load = useCallback(
-    async (c: string | null, replace: boolean) => {
-      setLoading(true);
-      setError("");
-      try {
-        const page = await apiGetPage<AdminUser>("/admin/users", {
-          q: q || undefined,
-          status: status === "all" ? undefined : status,
-          role: role === "all" ? undefined : role,
-          cursor: c ?? undefined,
-          limit: 20,
-        });
-        setItems(replace ? page.items : (prev) => [...prev, ...page.items]);
-        setCursor(page.nextCursor);
-        setHasMore(page.hasMore);
-      } catch (e) {
-        setError(e instanceof ApiError ? e.message : "Gagal memuat");
-      } finally {
-        setLoading(false);
-      }
+  const list = useAdminList<AdminUser>("/admin/users", {
+    params: {
+      q: q || undefined,
+      status: status === "all" ? undefined : status,
+      role: role === "all" ? undefined : role,
     },
-    [q, status, role],
-  );
+    limit: 20,
+  });
 
   useEffect(() => {
-    load(null, true);
     const qs = new URLSearchParams();
     if (role !== "all") qs.set("role", role);
     if (status !== "all") qs.set("status", status);
@@ -92,13 +68,14 @@ export default function PenggunaPage() {
     apiGet<{ total: number }>(`/admin/users-count${qs.size ? `?${qs.toString()}` : ""}`)
       .then((d) => setTotal(d.total))
       .catch(() => {});
-  }, [load, role, status, q]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [q, status, role]);
 
   async function changeStatus(id: number, newStatus: string) {
     try {
       await apiPatch(`/admin/users/${id}`, { status: newStatus });
-      toast.success(`Status pengguna #${id} → ${newStatus}`);
-      load(cursor && !hasMore ? null : null, true);
+      toast.success(`Status pengguna #${id} diperbarui`);
+      list.reload();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Gagal");
     }
@@ -108,7 +85,7 @@ export default function PenggunaPage() {
     try {
       await apiPatch(`/admin/users/${id}`, { [action]: role });
       toast.success(`Role ${role} ${action === "add_role" ? "ditambahkan" : "dihapus"} (#${id})`);
-      load(null, true);
+      list.reload();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Gagal");
     }
@@ -116,24 +93,15 @@ export default function PenggunaPage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">
-          Pengguna{" "}
-          {total !== null && <span className="text-lg font-normal text-muted-foreground">· {total} akun</span>}
-        </h1>
-        <p className="text-sm text-muted-foreground">Kelola akun santri, ustadz & admin</p>
-      </div>
+      <PageHeader
+        title="Pengguna"
+        total={total}
+        totalSuffix="akun"
+        subtitle="Kelola akun santri, ustadz & admin — klik baris untuk detail"
+      />
 
-      <div className="flex flex-wrap gap-2">
-        <div className="relative flex-1 min-w-48">
-          <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
-          <Input
-            placeholder="Cari email / phone..."
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            className="pl-8"
-          />
-        </div>
+      <Toolbar>
+        <SearchInput value={q} onChange={setQ} placeholder="Cari nama / email / nomor HP…" />
         <Select value={role} onValueChange={(v) => setRole(v ?? "all")}>
           <SelectTrigger className="w-40">
             <SelectValue placeholder="Peran" />
@@ -154,52 +122,45 @@ export default function PenggunaPage() {
             <SelectItem value="all">Semua status</SelectItem>
             <SelectItem value="ACTIVE">Aktif</SelectItem>
             <SelectItem value="PENDING_VERIFICATION">Menunggu verifikasi</SelectItem>
-            <SelectItem value="SUSPENDED">Suspend</SelectItem>
+            <SelectItem value="SUSPENDED">Ditangguhkan</SelectItem>
           </SelectContent>
         </Select>
-      </div>
+        <RefreshButton onClick={list.reload} />
+      </Toolbar>
 
-      {error && <div className="text-sm text-destructive">{error}</div>}
-
-      <div className="rounded-lg border">
+      <TableShell>
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-12">ID</TableHead>
-              <TableHead>Nama</TableHead>
-              <TableHead>Email / Phone</TableHead>
-              <TableHead>Tipe</TableHead>
-              <TableHead>Role</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Login Terakhir</TableHead>
-              <TableHead className="text-right">Aksi</TableHead>
+              <SortHead label="ID" col="id" sort={list.sort} order={list.order} onSort={list.toggleSort} className="w-12" />
+              <SortHead label="Nama" col="full_name" sort={list.sort} order={list.order} onSort={list.toggleSort} />
+              <Head label="Kontak" />
+              <Head label="Tipe" />
+              <Head label="Role" />
+              <SortHead label="Status" col="status" sort={list.sort} order={list.order} onSort={list.toggleSort} />
+              <SortHead label="Login Terakhir" col="last_login_at" sort={list.sort} order={list.order} onSort={list.toggleSort} />
+              <Head label="" className="text-right" />
             </TableRow>
           </TableHeader>
           <TableBody>
-            {loading && items.length === 0
-              ? Array.from({ length: 5 }).map((_, i) => (
-                  <TableRow key={i}>
-                    {Array.from({ length: 7 }).map((_, j) => (
-                      <TableCell key={j}>
-                        <Skeleton className="h-4 w-full" />
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))
-              : items.map((u) => {
-                  // klik baris -> detail sesuai peran (santri/ustadz punya halaman khusus)
-                  const detailHref = u.roles?.includes("USTADZ")
-                    ? `/ustadz/${u.id}`
-                    : u.roles?.includes("SANTRI")
-                      ? `/santri/${u.id}`
-                      : null;
-                  return (
+            {list.loading && list.items.length === 0 ? (
+              <TableSkeleton rows={5} cols={COLS} />
+            ) : list.items.length === 0 ? (
+              <EmptyRow colSpan={COLS} message="Tidak ada pengguna sesuai filter." />
+            ) : (
+              list.items.map((u) => {
+                const detailHref = u.roles?.includes("USTADZ")
+                  ? `/ustadz/${u.id}`
+                  : u.roles?.includes("SANTRI")
+                    ? `/santri/${u.id}`
+                    : null;
+                return (
                   <TableRow
                     key={u.id}
                     className={detailHref ? "cursor-pointer hover:bg-muted/50" : ""}
                     onClick={() => detailHref && router.push(detailHref)}
                   >
-                    <TableCell className="font-mono text-xs">{u.id}</TableCell>
+                    <TableCell className="font-mono text-xs text-muted-foreground">{u.id}</TableCell>
                     <TableCell>
                       <div className="text-sm">{u.full_name || "—"}</div>
                       {u.city && <div className="text-xs text-muted-foreground">{u.city}</div>}
@@ -211,7 +172,7 @@ export default function PenggunaPage() {
                     <TableCell>
                       <Badge variant="outline">{u.account_type}</Badge>
                     </TableCell>
-                    <TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
                       <div className="flex flex-wrap gap-1">
                         {(u.roles ?? []).map((r) => (
                           <Badge
@@ -235,52 +196,32 @@ export default function PenggunaPage() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <span
-                        className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
-                          statusVariant[u.status] ?? "bg-gray-100"
-                        }`}
-                      >
-                        {u.status}
-                      </span>
+                      <StatusPill status={u.status} />
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
-                      {u.last_login_at?.replace("T", " ").replace("Z", "") ?? "—"}
+                      {fmtDateTime(u.last_login_at)}
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                       {u.status === "PENDING_VERIFICATION" && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => changeStatus(u.id, "ACTIVE")}
-                        >
+                        <Button size="sm" variant="outline" onClick={() => changeStatus(u.id, "ACTIVE")}>
                           Aktifkan
                         </Button>
                       )}
                       {u.status === "ACTIVE" && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="text-destructive"
-                          onClick={() => changeStatus(u.id, "SUSPENDED")}
-                        >
+                        <Button size="sm" variant="outline" className="text-destructive" onClick={() => changeStatus(u.id, "SUSPENDED")}>
                           Suspend
                         </Button>
                       )}
                     </TableCell>
                   </TableRow>
-                  );
-                })}
+                );
+              })
+            )}
           </TableBody>
         </Table>
-      </div>
+      </TableShell>
 
-      {hasMore && (
-        <div className="flex justify-center">
-          <Button variant="outline" onClick={() => load(cursor, false)} disabled={loading}>
-            {loading ? "Memuat..." : "Muat lebih banyak"} <ChevronRight className="size-4" />
-          </Button>
-        </div>
-      )}
+      <Pager page={list.page} hasMore={list.hasMore} loading={list.loading} onPrev={list.goPrev} onNext={list.goNext} />
     </div>
   );
 }

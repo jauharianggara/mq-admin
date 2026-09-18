@@ -1,13 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Search, ChevronRight } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { apiGet, apiGetPage, apiPost, ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -15,6 +14,17 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  PageHeader,
+  Toolbar,
+  RefreshButton,
+  TableShell,
+  Head,
+  TableSkeleton,
+  EmptyRow,
+} from "@/components/data-table";
+import { StatusPill } from "@/components/status-pill";
+import { fmtDateTime } from "@/lib/format";
 import {
   Table,
   TableBody,
@@ -48,12 +58,11 @@ interface Submission {
   } | null;
 }
 
-const statusColor: Record<string, string> = {
-  PENDING: "bg-amber-100 text-amber-800",
-  IN_REVIEW: "bg-blue-100 text-blue-800",
+// pewarnaan status dipusatkan di components/status-pill (kit); detailBadge hanya utk verdict di dialog detail
+const detailBadge: Record<string, string> = {
   PASSED: "bg-emerald-100 text-emerald-800",
-  REVISION: "bg-orange-100 text-orange-800",
-  REJECTED: "bg-red-100 text-red-800",
+  REVISION: "bg-amber-100 text-amber-800",
+  REJECTED: "bg-red-100 text-red-700",
 };
 
 export default function HafalanPage() {
@@ -126,89 +135,65 @@ export default function HafalanPage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Hafalan — Antrean Review</h1>
-        <p className="text-sm text-muted-foreground">
-          Setoran santri yang menunggu diperiksa ustadz
-        </p>
-      </div>
+      <PageHeader
+        title="Hafalan — Antrean Review"
+        subtitle="Setoran santri yang menunggu diperiksa ustadz — klik baris untuk detail & putusan"
+      />
 
-      <div className="flex gap-2">
-        {["PENDING", "IN_REVIEW", "ALL"].map((s) => (
-          <Button
-            key={s}
-            size="sm"
-            variant={status === s ? "default" : "outline"}
-            onClick={() => setStatus(s)}
-          >
-            {s === "PENDING" ? "Menunggu" : s === "IN_REVIEW" ? "Sedang Direview" : "Semua"}
-          </Button>
-        ))}
-      </div>
+      <Toolbar>
+        <Select value={status} onValueChange={(v) => setStatus(v ?? "ALL")}>
+          <SelectTrigger className="w-44">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="PENDING">Menunggu</SelectItem>
+            <SelectItem value="IN_REVIEW">Sedang Direview</SelectItem>
+            <SelectItem value="ALL">Semua</SelectItem>
+          </SelectContent>
+        </Select>
+        <RefreshButton onClick={() => load(null, true)} />
+      </Toolbar>
 
-      <div className="rounded-lg border">
+      <TableShell>
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-12">ID</TableHead>
-              <TableHead>Santri</TableHead>
-              <TableHead>Surah</TableHead>
-              <TableHead>Ayat</TableHead>
-              <TableHead>Durasi</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Disetor</TableHead>
-              <TableHead className="text-right">Aksi</TableHead>
+              <Head label="ID" className="w-12" />
+              <Head label="Santri" />
+              <Head label="Surah" />
+              <Head label="Ayat" />
+              <Head label="Durasi" />
+              <Head label="Status" />
+              <Head label="Disetor" />
+              <Head label="" className="text-right" />
             </TableRow>
           </TableHeader>
           <TableBody>
-            {loading && items.length === 0
-              ? Array.from({ length: 5 }).map((_, i) => (
-                  <TableRow key={i}>
-                    {Array.from({ length: 8 }).map((_, j) => (
-                      <TableCell key={j}>
-                        <Skeleton className="h-4 w-full" />
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))
-              : items.map((s) => (
-                  <TableRow key={s.id} className="cursor-pointer" onClick={() => openDetail(s.id)}>
-                    <TableCell className="font-mono text-xs">{s.id}</TableCell>
-                    <TableCell className="text-sm">{s.user_name ?? `#${s.user_id}`}</TableCell>
-                    <TableCell className="text-sm">{s.surah_name}</TableCell>
-                    <TableCell className="text-sm font-mono">
-                      {s.ayah_start}-{s.ayah_end}
-                    </TableCell>
-                    <TableCell className="text-sm">
-                      {s.duration_ms ? `${Math.round(s.duration_ms / 1000)}s` : "—"}
-                    </TableCell>
-                    <TableCell>
-                      <span
-                        className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
-                          statusColor[s.status] ?? "bg-gray-100"
-                        }`}
-                      >
-                        {s.status}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {s.submitted_at?.replace("T", " ").replace("Z", "")}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <ChevronRight className="size-4 text-muted-foreground" />
-                    </TableCell>
-                  </TableRow>
-                ))}
-            {!loading && items.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={8} className="text-center text-sm text-muted-foreground py-8">
-                  Tidak ada setoran pada filter ini
-                </TableCell>
-              </TableRow>
+            {loading && items.length === 0 ? (
+              <TableSkeleton rows={5} cols={8} />
+            ) : items.length === 0 ? (
+              <EmptyRow colSpan={8} message="Tidak ada setoran pada filter ini" />
+            ) : (
+              items.map((s) => (
+                <TableRow key={s.id} className="cursor-pointer" onClick={() => openDetail(s.id)}>
+                  <TableCell className="font-mono text-xs">{s.id}</TableCell>
+                  <TableCell className="text-sm">{s.user_name ?? `#${s.user_id}`}</TableCell>
+                  <TableCell className="text-sm">{s.surah_name}</TableCell>
+                  <TableCell className="text-sm font-mono">{s.ayah_start}-{s.ayah_end}</TableCell>
+                  <TableCell className="text-sm">{s.duration_ms ? `${Math.round(s.duration_ms / 1000)}s` : "—"}</TableCell>
+                  <TableCell>
+                    <StatusPill status={s.status} />
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{fmtDateTime(s.submitted_at)}</TableCell>
+                  <TableCell className="text-right">
+                    <ChevronRight className="size-4 text-muted-foreground" />
+                  </TableCell>
+                </TableRow>
+              ))
             )}
           </TableBody>
         </Table>
-      </div>
+      </TableShell>
 
       {hasMore && (
         <div className="flex justify-center">
@@ -230,7 +215,7 @@ export default function HafalanPage() {
               <div className="space-y-4">
                 <div className="text-sm text-muted-foreground">
                   Santri: {detail.user_name ?? `#${detail.user_id}`} ·{" "}
-                  {detail.submitted_at?.replace("T", " ").replace("Z", "")}
+                  {fmtDateTime(detail.submitted_at)}
                 </div>
                 {detail.note && (
                   <div className="rounded-md bg-muted p-3 text-sm">{detail.note}</div>
@@ -291,7 +276,7 @@ export default function HafalanPage() {
                 )}
                 {["PASSED", "REVISION", "REJECTED"].includes(detail.status) && detail.review && (
                   <div className="rounded-md border p-3 text-sm">
-                    <Badge className={statusColor[detail.status]}>{detail.review.verdict}</Badge>
+                    <Badge variant="secondary" className={detailBadge[detail.review.verdict] ?? ""}>{detail.review.verdict}</Badge>
                     {detail.review.notes && (
                       <div className="mt-2 text-muted-foreground">{detail.review.notes}</div>
                     )}

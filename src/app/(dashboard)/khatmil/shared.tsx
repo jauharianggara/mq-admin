@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import { StatusPill } from "@/components/status-pill";
 
 /* ============================== Types ============================== */
 
@@ -98,18 +99,8 @@ export const STATUS_LABEL: Record<string, string> = {
 export const isTerminal = (st: string) => st === "COMPLETED" || st === "CANCELLED";
 
 export function StatusBadge({ status }: { status: string }) {
-  const map: Record<string, string> = {
-    ACTIVE: "border-emerald-200 bg-emerald-50 text-emerald-700",
-    SCHEDULED: "border-blue-200 bg-blue-50 text-blue-700",
-    DRAFT: "border-border bg-muted text-muted-foreground",
-    COMPLETED: "border-emerald-300 bg-emerald-100 text-emerald-800",
-    CANCELLED: "border-red-200 bg-red-50 text-red-700",
-  };
-  return (
-    <Badge variant="outline" className={map[status] ?? ""}>
-      {STATUS_LABEL[status] ?? status}
-    </Badge>
-  );
+  // delegasi ke kit StatusPill — satu sumber gaya status utk seluruh admin
+  return <StatusPill status={status} fallbackLabel={STATUS_LABEL[status] ?? status} />;
 }
 
 export function initials(name: string) {

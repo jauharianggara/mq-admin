@@ -1,19 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { CheckCircle2, Download, RefreshCw, Upload, XCircle } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { CheckCircle2, Download, Upload, XCircle } from "lucide-react";
 import { apiGet, apiGetPage, apiPost, ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -24,10 +16,24 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  PageHeader,
+  Toolbar,
+  SearchInput,
+  RefreshButton,
+  TableShell,
+  SortHead,
+  Head,
+  TableSkeleton,
+  EmptyRow,
+  Pager,
+} from "@/components/data-table";
+import { StatusPill, statusLabel } from "@/components/status-pill";
+import { useAdminList } from "@/hooks/use-admin-list";
+import { rp, fmtDateTime } from "@/lib/format";
+import {
   Table,
   TableBody,
   TableCell,
-  TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
@@ -46,39 +52,12 @@ interface Payout {
   rejected_reason?: string | null;
 }
 
-const statusColor: Record<string, string> = {
-  PENDING: "bg-amber-100 text-amber-700",
-  APPROVED: "bg-sky-100 text-sky-700",
-  TRANSFERRED: "bg-green-100 text-green-700",
-  REJECTED: "bg-red-100 text-red-700",
-};
-
-const statusLabel: Record<string, string> = {
-  PENDING: "Menunggu ACC",
-  APPROVED: "Disetujui",
-  TRANSFERRED: "Sudah ditransfer",
-  REJECTED: "Ditolak",
-};
-
-function fmt(iso: string | null) {
-  if (!iso) return "-";
-  const d = new Date(iso);
-  return d.toLocaleString("id-ID", {
-    day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-function fmtRp(n: number) {
-  return "Rp " + n.toLocaleString("id-ID");
-}
+const STATUS_ORDER = ["PENDING", "APPROVED", "TRANSFERRED", "REJECTED"];
+const COLS = 8;
 
 export default function PayoutsPage() {
-  const [items, setItems] = useState<Payout[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<string>("ALL");
+  const [q, setQ] = useState("");
+  const [filter, setFilter] = useState("ALL");
   const [busy, setBusy] = useState<number | null>(null);
   const [rejectTarget, setRejectTarget] = useState<Payout | null>(null);
   const [reason, setReason] = useState("");
@@ -87,33 +66,35 @@ export default function PayoutsPage() {
   const [total, setTotal] = useState<number | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const { items } = await apiGetPage<Payout>("/admin/payouts", {
-        status: filter === "ALL" ? undefined : filter,
-      });
-      setItems(items);
-    } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : "Gagal memuat penarikan");
-    } finally {
-      setLoading(false);
-    }
-  }, [filter]);
+  const list = useAdminList<Payout>("/admin/payouts", {
+    params: { status: filter === "ALL" ? undefined : filter },
+    limit: 20,
+  });
 
   useEffect(() => {
-    load();
     const qs = new URLSearchParams({ entity: "payouts" });
     if (filter !== "ALL") qs.set("status", filter);
     apiGet<{ total: number }>(`/admin/count?${qs.toString()}`)
       .then((d) => setTotal(d.total))
       .catch(() => {});
-  }, [load, filter]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filter]);
+
+  const items = q.trim()
+    ? list.items.filter(
+        (p) =>
+          p.ustadz_name?.toLowerCase().includes(q.toLowerCase()) ||
+          p.account_no?.includes(q.trim()) ||
+          String(p.id) === q.trim(),
+      )
+    : list.items;
+
+  const pendingCount = items.filter((p) => p.status === "PENDING").length;
 
   async function approve(p: Payout) {
     if (
       !confirm(
-        `ACC penarikan ${fmtRp(p.amount)} oleh ${p.ustadz_name} ke ${p.bank_name} ${p.account_no} a.n. ${p.account_name}?`
+        `ACC penarikan ${rp(p.amount)} oleh ${p.ustadz_name} ke ${p.bank_name} ${p.account_no} a.n. ${p.account_name}?`
       )
     )
       return;
@@ -121,7 +102,7 @@ export default function PayoutsPage() {
     try {
       await apiPost(`/admin/payouts/${p.id}/approve`);
       toast.success("Disetujui — masuk daftar transfer");
-      load();
+      list.reload();
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : "Gagal menyetujui");
     } finally {
@@ -141,7 +122,7 @@ export default function PayoutsPage() {
       toast.success("Ditolak — dana kembali ke saldo ustadz");
       setRejectTarget(null);
       setReason("");
-      load();
+      list.reload();
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : "Gagal menolak");
     } finally {
@@ -155,7 +136,7 @@ export default function PayoutsPage() {
     try {
       await apiPost(`/admin/payouts/mark-transferred`, { payout_ids: [p.id] });
       toast.success("Ditandai sudah ditransfer");
-      load();
+      list.reload();
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : "Gagal menandai");
     } finally {
@@ -163,7 +144,6 @@ export default function PayoutsPage() {
     }
   }
 
-  // ===== Download daftar transfer (CSV, status APPROVED) =====
   async function downloadCsv() {
     setExporting(true);
     try {
@@ -174,21 +154,12 @@ export default function PayoutsPage() {
       }
       const head = ["payout_id", "ustadz", "bank", "no_rekening", "atas_nama", "diterima"];
       const lines = items.map((p) =>
-        [
-          p.id,
-          p.ustadz_name,
-          p.bank_name,
-          p.account_no,
-          p.account_name,
-          p.amount,
-        ]
+        [p.id, p.ustadz_name, p.bank_name, p.account_no, p.account_name, p.amount]
           .map((v) => `"${String(v).replace(/"/g, '""')}"`)
           .join(",")
       );
       const csv = "\uFEFF" + [head.join(","), ...lines].join("\r\n");
-      const url = URL.createObjectURL(
-        new Blob([csv], { type: "text/csv;charset=utf-8" })
-      );
+      const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
       const a = document.createElement("a");
       a.href = url;
       a.download = `daftar-transfer-mq-${new Date().toISOString().slice(0, 10)}.csv`;
@@ -202,7 +173,6 @@ export default function PayoutsPage() {
     }
   }
 
-  // ===== Upload daftar transfer (CSV berisi payout_id) → bulk TRANSFERRED =====
   async function uploadCsv(file: File) {
     setUploading(true);
     try {
@@ -218,14 +188,13 @@ export default function PayoutsPage() {
         toast.error("CSV tidak memuat payout_id yang dikenal (kolom pertama)");
         return;
       }
-      const res = await apiPost<{ transferred: number; skipped: number }>(
-        "/admin/payouts/mark-transferred",
-        { payout_ids: unique }
-      );
+      const res = await apiPost<{ transferred: number; skipped: number }>("/admin/payouts/mark-transferred", {
+        payout_ids: unique,
+      });
       toast.success(
-        `${res.transferred} ditandai transfer${res.skipped > 0 ? `, ${res.skipped} dilewati (bukan APPROVED)` : ""}`
+        `${res.transferred} ditandai transfer${res.skipped > 0 ? `, ${res.skipped} dilewati (bukan Disetujui)` : ""}`
       );
-      load();
+      list.reload();
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : "Gagal memproses CSV");
     } finally {
@@ -234,103 +203,80 @@ export default function PayoutsPage() {
     }
   }
 
-  const pendingCount = items.filter((p) => p.status === "PENDING").length;
-
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h1 className="text-2xl font-semibold">
-          Penarikan Dana Ustadz{" "}
-          {total !== null && <span className="text-lg font-normal text-muted-foreground">· {total} pengajuan</span>}
-        </h1>
-          <p className="text-sm text-muted-foreground">
-            Ustadz mengajukan sendiri dari aplikasi — saldo terkunci sejak pengajuan.
-            {pendingCount > 0 && (
-              <>
-                {" "}
-                <Badge className={statusColor.PENDING}>{pendingCount} menunggu ACC</Badge>
-              </>
-            )}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Select value={filter} onValueChange={(v) => setFilter(v ?? "ALL")}>
-            <SelectTrigger className="w-48">
-              <SelectValue placeholder="Semua status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="ALL">Semua status</SelectItem>
-              {Object.keys(statusColor).map((s) => (
-                <SelectItem key={s} value={s}>
-                  {statusLabel[s]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button variant="outline" disabled={exporting} onClick={downloadCsv}>
-            <Download className="mr-2 h-4 w-4" />
-            Daftar Transfer
-          </Button>
-          <Button
-            variant="outline"
-            disabled={uploading}
-            onClick={() => fileRef.current?.click()}
-          >
-            <Upload className="mr-2 h-4 w-4" />
-            {uploading ? "Memproses…" : "Unggah Bukti Transfer"}
-          </Button>
-          <input
-            ref={fileRef}
-            type="file"
-            accept=".csv,text/csv"
-            className="hidden"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) uploadCsv(f);
-            }}
-          />
-          <Button variant="outline" onClick={load}>
-            <RefreshCw className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title="Penarikan Dana Ustadz"
+        total={total}
+        totalSuffix="pengajuan"
+        subtitle={`Ustadz mengajukan sendiri dari aplikasi — saldo terkunci sejak pengajuan.${
+          pendingCount > 0 ? ` Saat ini ${pendingCount} menunggu ACC.` : ""
+        }`}
+        actions={
+          <>
+            <Button variant="outline" disabled={exporting} onClick={downloadCsv}>
+              <Download className="mr-2 h-4 w-4" />
+              Daftar Transfer
+            </Button>
+            <Button variant="outline" disabled={uploading} onClick={() => fileRef.current?.click()}>
+              <Upload className="mr-2 h-4 w-4" />
+              {uploading ? "Memproses…" : "Unggah Bukti Transfer"}
+            </Button>
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".csv,text/csv"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) uploadCsv(f);
+              }}
+            />
+          </>
+        }
+      />
 
-      <div className="rounded-lg border">
+      <Toolbar>
+        <SearchInput value={q} onChange={setQ} placeholder="Cari ustadz / no. rekening…" />
+        <Select value={filter} onValueChange={(v) => setFilter(v ?? "ALL")}>
+          <SelectTrigger className="w-48">
+            <SelectValue placeholder="Semua status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="ALL">Semua status</SelectItem>
+            {STATUS_ORDER.map((s) => (
+              <SelectItem key={s} value={s}>
+                {statusLabel(s)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <RefreshButton onClick={list.reload} />
+      </Toolbar>
+
+      <TableShell>
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-14">#</TableHead>
-              <TableHead>Ustadz</TableHead>
-              <TableHead>Bank / Rekening</TableHead>
-              <TableHead className="text-right">Diterima</TableHead>
-              <TableHead className="text-right">Fee</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Waktu</TableHead>
-              <TableHead className="text-right">Aksi</TableHead>
+              <SortHead label="No." col="id" sort={list.sort} order={list.order} onSort={list.toggleSort} className="w-14" />
+              <Head label="Ustadz" />
+              <Head label="Bank / Rekening" />
+              <SortHead label="Diterima" col="amount" sort={list.sort} order={list.order} onSort={list.toggleSort} className="text-right" />
+              <Head label="Fee" className="text-right" />
+              <SortHead label="Status" col="status" sort={list.sort} order={list.order} onSort={list.toggleSort} />
+              <SortHead label="Waktu" col="created_at" sort={list.sort} order={list.order} onSort={list.toggleSort} />
+              <Head label="" className="text-right" />
             </TableRow>
           </TableHeader>
           <TableBody>
-            {loading ? (
-              Array.from({ length: 4 }).map((_, i) => (
-                <TableRow key={i}>
-                  {Array.from({ length: 8 }).map((_, j) => (
-                    <TableCell key={j}>
-                      <Skeleton className="h-4 w-full" />
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
+            {list.loading && list.items.length === 0 ? (
+              <TableSkeleton rows={4} cols={COLS} />
             ) : items.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={8} className="py-10 text-center text-muted-foreground">
-                  Belum ada pengajuan penarikan.
-                </TableCell>
-              </TableRow>
+              <EmptyRow colSpan={COLS} message="Belum ada pengajuan penarikan." />
             ) : (
               items.map((p) => (
                 <TableRow key={p.id}>
-                  <TableCell className="text-muted-foreground">{p.id}</TableCell>
+                  <TableCell className="font-mono text-xs text-muted-foreground">{p.id}</TableCell>
                   <TableCell className="font-medium">{p.ustadz_name}</TableCell>
                   <TableCell>
                     <div className="text-sm">
@@ -338,34 +284,23 @@ export default function PayoutsPage() {
                     </div>
                     <div className="text-xs text-muted-foreground">a.n. {p.account_name}</div>
                   </TableCell>
-                  <TableCell className="text-right font-semibold">{fmtRp(p.amount)}</TableCell>
-                  <TableCell className="text-right text-muted-foreground">{fmtRp(p.fee)}</TableCell>
+                  <TableCell className="whitespace-nowrap text-right font-semibold">{rp(p.amount)}</TableCell>
+                  <TableCell className="whitespace-nowrap text-right text-muted-foreground">{rp(p.fee)}</TableCell>
                   <TableCell>
-                    <Badge className={statusColor[p.status]}>
-                      {statusLabel[p.status] ?? p.status}
-                    </Badge>
+                    <StatusPill status={p.status} />
                     {p.status === "REJECTED" && p.rejected_reason && (
                       <div className="mt-1 max-w-52 text-xs text-red-600">{p.rejected_reason}</div>
                     )}
                   </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">{fmt(p.created_at)}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground">{fmtDateTime(p.created_at)}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
                       {p.status === "PENDING" && (
                         <>
-                          <Button
-                            size="sm"
-                            disabled={busy === p.id}
-                            onClick={() => approve(p)}
-                          >
+                          <Button size="sm" disabled={busy === p.id} onClick={() => approve(p)}>
                             <CheckCircle2 className="mr-1 h-4 w-4" /> ACC
                           </Button>
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            disabled={busy === p.id}
-                            onClick={() => setRejectTarget(p)}
-                          >
+                          <Button size="sm" variant="destructive" disabled={busy === p.id} onClick={() => setRejectTarget(p)}>
                             <XCircle className="mr-1 h-4 w-4" /> Tolak
                           </Button>
                         </>
@@ -382,14 +317,17 @@ export default function PayoutsPage() {
             )}
           </TableBody>
         </Table>
-      </div>
+      </TableShell>
+
+      <Pager page={list.page} hasMore={list.hasMore} loading={list.loading} onPrev={list.goPrev} onNext={list.goNext} />
 
       <Dialog open={!!rejectTarget} onOpenChange={(o) => !o && setRejectTarget(null)}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Tolak penarikan #{rejectTarget?.id}?</DialogTitle>
             <DialogDescription>
-              Dana {rejectTarget ? fmtRp(rejectTarget.amount + (rejectTarget.fee ?? 0)) : ""} kembali ke saldo ustadz. Alasan diteruskan ke ustadz.
+              Dana {rejectTarget ? rp(rejectTarget.amount + (rejectTarget.fee ?? 0)) : ""} kembali ke saldo ustadz. Alasan
+              diteruskan ke ustadz.
             </DialogDescription>
           </DialogHeader>
           <Textarea

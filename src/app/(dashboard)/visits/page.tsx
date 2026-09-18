@@ -1,25 +1,29 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { RefreshCw } from "lucide-react";
-import { apiGet, apiGetPage, ApiError } from "@/lib/api";
+import { apiGet } from "@/lib/api";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
-import { toast } from "sonner";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  PageHeader,
+  Toolbar,
+  SearchInput,
+  RefreshButton,
+  TableShell,
+  SortHead,
+  Head,
+  TableSkeleton,
+  EmptyRow,
+  Pager,
+} from "@/components/data-table";
+import { StatusPill, statusLabel } from "@/components/status-pill";
+import { useAdminList } from "@/hooks/use-admin-list";
+import { rp, fmtDateTime } from "@/lib/format";
 import {
   Table,
   TableBody,
   TableCell,
-  TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
@@ -29,139 +33,121 @@ interface Visit {
   status: string;
   scheduled_at: string;
   duration_hours: number;
-  price_per_hour: number;
   price_total: number;
   requester: { full_name: string } | null;
   ustadz: { full_name: string } | null;
   payment: { status: string; channel: string | null; refunded_amount: number } | null;
 }
 
-const statusColor: Record<string, string> = {
-  REQUESTED: "bg-sky-100 text-sky-700",
-  WAITING_CONFIRM: "bg-amber-100 text-amber-700",
-  CONFIRMED: "bg-green-100 text-green-700",
-  COMPLETED: "bg-emerald-100 text-emerald-700",
-  REVIEWED: "bg-purple-100 text-purple-700",
-  DECLINED: "bg-red-100 text-red-700",
-  CANCELED: "bg-gray-200 text-gray-700",
-  PAYMENT_EXPIRED: "bg-gray-200 text-gray-600",
-};
+const STATUS_ORDER = [
+  "REQUESTED",
+  "WAITING_CONFIRM",
+  "CONFIRMED",
+  "COMPLETED",
+  "REVIEWED",
+  "DECLINED",
+  "CANCELED",
+  "PAYMENT_EXPIRED",
+];
 
-function fmt(iso: string | null) {
-  if (!iso) return "-";
-  return new Date(iso).toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "short" });
-}
-
-function rp(n: number | null | undefined) {
-  return "Rp " + (n ?? 0).toLocaleString("id-ID");
-}
+const COLS = 9;
 
 export default function VisitsPage() {
-  const [items, setItems] = useState<Visit[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<string>("ALL");
+  const [q, setQ] = useState("");
+  const [filter, setFilter] = useState("ALL");
   const [total, setTotal] = useState<number | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const { items } = await apiGetPage<Visit>("/admin/visits", {
-        status: filter === "ALL" ? undefined : filter,
-      });
-      setItems(items);
-    } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : "Gagal memuat kunjungan");
-    } finally {
-      setLoading(false);
-    }
-  }, [filter]);
+  const list = useAdminList<Visit>("/admin/visits", {
+    params: { status: filter === "ALL" ? undefined : filter },
+    limit: 20,
+  });
 
   useEffect(() => {
-    load();
     const qs = new URLSearchParams({ entity: "visits" });
     if (filter !== "ALL") qs.set("status", filter);
     apiGet<{ total: number }>(`/admin/count?${qs.toString()}`)
       .then((d) => setTotal(d.total))
       .catch(() => {});
-  }, [load, filter]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filter]);
+
+  const items = q.trim()
+    ? list.items.filter(
+        (v) =>
+          v.requester?.full_name?.toLowerCase().includes(q.toLowerCase()) ||
+          v.ustadz?.full_name?.toLowerCase().includes(q.toLowerCase()) ||
+          String(v.id) === q.trim(),
+      )
+    : list.items;
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">
-          Kunjungan{" "}
-          {total !== null && <span className="text-lg font-normal text-muted-foreground">· {total} kunjungan</span>}
-        </h1>
-        <div className="flex items-center gap-2">
-          <Select value={filter} onValueChange={(v) => setFilter(v ?? "ALL")}>
-            <SelectTrigger className="w-48">
-              <SelectValue placeholder="Semua status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="ALL">Semua status</SelectItem>
-              {Object.keys(statusColor).map((s) => (
-                <SelectItem key={s} value={s}>
-                  {s}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button variant="outline" onClick={load}>
-            <RefreshCw className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title="Kunjungan"
+        total={total}
+        totalSuffix="kunjungan"
+        subtitle="Pesanan ngaji ke rumah — klik Buka untuk detail, chat & tindakan admin"
+      />
 
-      {loading ? (
-        <Skeleton className="h-64 w-full" />
-      ) : items.length === 0 ? (
-        <div className="rounded-lg border p-10 text-center text-muted-foreground">
-          Belum ada data kunjungan.
-        </div>
-      ) : (
-        <div className="rounded-lg border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>#</TableHead>
-                <TableHead>Santri</TableHead>
-                <TableHead>Ustadz</TableHead>
-                <TableHead>Jadwal</TableHead>
-                <TableHead>Durasi</TableHead>
-                <TableHead>Bayar dgn</TableHead>
-                <TableHead className="text-right">Total</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Detail</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {items.map((v) => (
+      <Toolbar>
+        <SearchInput value={q} onChange={setQ} placeholder="Cari santri / ustadz / nomor…" />
+        <Select value={filter} onValueChange={(v) => setFilter(v ?? "ALL")}>
+          <SelectTrigger className="w-56">
+            <SelectValue placeholder="Semua status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="ALL">Semua status</SelectItem>
+            {STATUS_ORDER.map((s) => (
+              <SelectItem key={s} value={s}>
+                {statusLabel(s)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <RefreshButton onClick={list.reload} />
+      </Toolbar>
+
+      <TableShell>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <SortHead label="No." col="id" sort={list.sort} order={list.order} onSort={list.toggleSort} className="w-12" />
+              <Head label="Santri" />
+              <Head label="Ustadz" />
+              <SortHead label="Jadwal" col="scheduled_at" sort={list.sort} order={list.order} onSort={list.toggleSort} />
+              <Head label="Durasi" />
+              <Head label="Bayar dengan" />
+              <SortHead label="Total" col="price_total" sort={list.sort} order={list.order} onSort={list.toggleSort} className="text-right" />
+              <SortHead label="Status" col="status" sort={list.sort} order={list.order} onSort={list.toggleSort} />
+              <Head label="" className="text-right" />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {list.loading && list.items.length === 0 ? (
+              <TableSkeleton rows={5} cols={COLS} />
+            ) : items.length === 0 ? (
+              <EmptyRow colSpan={COLS} message="Belum ada kunjungan sesuai filter." />
+            ) : (
+              items.map((v) => (
                 <TableRow key={v.id} className="hover:bg-muted/50">
-                  <TableCell>{v.id}</TableCell>
-                  <TableCell>{v.requester?.full_name ?? "-"}</TableCell>
-                  <TableCell>{v.ustadz?.full_name ?? "-"}</TableCell>
-                  <TableCell className="whitespace-nowrap">{fmt(v.scheduled_at)}</TableCell>
-                  <TableCell className="whitespace-nowrap">{v.duration_hours} jam</TableCell>
-                  <TableCell>
-                    {v.payment ? (
-                      <span className="text-xs">
-                        {v.payment.channel === "DEPOSIT"
-                          ? "Saldo"
-                          : v.payment.channel
-                            ? `Xendit (${v.payment.channel})`
-                            : "Xendit"}
-                        {v.payment.refunded_amount > 0 &&
-                          ` (-${rp(v.payment.refunded_amount)})`}
-                      </span>
-                    ) : (
-                      "-"
-                    )}
+                  <TableCell className="font-mono text-xs text-muted-foreground">{v.id}</TableCell>
+                  <TableCell className="text-sm">{v.requester?.full_name ?? "-"}</TableCell>
+                  <TableCell className="text-sm">{v.ustadz?.full_name ?? "-"}</TableCell>
+                  <TableCell className="whitespace-nowrap text-sm">{fmtDateTime(v.scheduled_at)}</TableCell>
+                  <TableCell className="whitespace-nowrap text-sm">{v.duration_hours} jam</TableCell>
+                  <TableCell className="text-xs">
+                    {v.payment
+                      ? v.payment.channel === "DEPOSIT"
+                        ? "Saldo deposit"
+                        : v.payment.channel
+                          ? `Xendit (${v.payment.channel})`
+                          : "Xendit"
+                      : "-"}
+                    {v.payment && v.payment.refunded_amount > 0 && ` (-${rp(v.payment.refunded_amount)})`}
                   </TableCell>
-                  <TableCell className="text-right font-semibold">{rp(v.price_total)}</TableCell>
+                  <TableCell className="whitespace-nowrap text-right font-semibold">{rp(v.price_total)}</TableCell>
                   <TableCell>
-                    <Badge variant="secondary" className={statusColor[v.status] ?? ""}>
-                      {v.status}
-                    </Badge>
+                    <StatusPill status={v.status} />
                   </TableCell>
                   <TableCell className="text-right">
                     <Button size="sm" variant="outline" render={<Link href={`/visits/${v.id}`} />}>
@@ -169,11 +155,13 @@ export default function VisitsPage() {
                     </Button>
                   </TableCell>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      )}
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </TableShell>
+
+      <Pager page={list.page} hasMore={list.hasMore} loading={list.loading} onPrev={list.goPrev} onNext={list.goNext} />
     </div>
   );
 }
