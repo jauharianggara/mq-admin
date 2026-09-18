@@ -111,7 +111,7 @@ export default function VisitsPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <SortHead label="No." col="id" sort={list.sort} order={list.order} onSort={list.toggleSort} className="w-12" />
+              <Head label="No." className="w-12" />
               <Head label="Santri" />
               <Head label="Ustadz" />
               <SortHead label="Jadwal" col="scheduled_at" sort={list.sort} order={list.order} onSort={list.toggleSort} />
@@ -128,9 +128,9 @@ export default function VisitsPage() {
             ) : items.length === 0 ? (
               <EmptyRow colSpan={COLS} message="Belum ada kunjungan sesuai filter." />
             ) : (
-              items.map((v) => (
+              items.map((v, i) => (
                 <TableRow key={v.id} className="hover:bg-muted/50">
-                  <TableCell className="font-mono text-xs text-muted-foreground">{v.id}</TableCell>
+                  <TableCell className="text-muted-foreground">{(list.page - 1) * 20 + i + 1}</TableCell>
                   <TableCell className="text-sm">{v.requester?.full_name ?? "-"}</TableCell>
                   <TableCell className="text-sm">{v.ustadz?.full_name ?? "-"}</TableCell>
                   <TableCell className="whitespace-nowrap text-sm">{fmtDateTime(v.scheduled_at)}</TableCell>

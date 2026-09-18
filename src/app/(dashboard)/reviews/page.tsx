@@ -114,7 +114,7 @@ export default function ReviewsPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <SortHead label="No." col="id" sort={list.sort} order={list.order} onSort={list.toggleSort} className="w-12" />
+              <Head label="No." className="w-12" />
               <Head label="Arah" />
               <Head label="Penilai" />
               <Head label="Kunjungan" />
@@ -131,9 +131,9 @@ export default function ReviewsPage() {
             ) : items.length === 0 ? (
               <EmptyRow colSpan={COLS} message="Belum ada review." />
             ) : (
-              items.map((r) => (
+              items.map((r, i) => (
                 <TableRow key={r.id}>
-                  <TableCell className="font-mono text-xs text-muted-foreground">{r.id}</TableCell>
+                  <TableCell className="text-muted-foreground">{(list.page - 1) * 50 + i + 1}</TableCell>
                   <TableCell>
                     <Badge variant="outline" className="text-xs">
                       {r.direction === "SANTRI_TO_USTADZ" ? "S→U" : "U→S"}

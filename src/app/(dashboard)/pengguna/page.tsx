@@ -132,7 +132,7 @@ export default function PenggunaPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <SortHead label="ID" col="id" sort={list.sort} order={list.order} onSort={list.toggleSort} className="w-12" />
+              <Head label="No." className="w-12" />
               <SortHead label="Nama" col="full_name" sort={list.sort} order={list.order} onSort={list.toggleSort} />
               <Head label="Kontak" />
               <Head label="Tipe" />
@@ -148,7 +148,8 @@ export default function PenggunaPage() {
             ) : list.items.length === 0 ? (
               <EmptyRow colSpan={COLS} message="Tidak ada pengguna sesuai filter." />
             ) : (
-              list.items.map((u) => {
+              list.items.map((u, i) => {
+                const no = (list.page - 1) * 20 + i + 1;
                 const detailHref = u.roles?.includes("USTADZ")
                   ? `/ustadz/${u.id}`
                   : u.roles?.includes("SANTRI")
@@ -160,7 +161,7 @@ export default function PenggunaPage() {
                     className={detailHref ? "cursor-pointer hover:bg-muted/50" : ""}
                     onClick={() => detailHref && router.push(detailHref)}
                   >
-                    <TableCell className="font-mono text-xs text-muted-foreground">{u.id}</TableCell>
+                    <TableCell className="text-muted-foreground">{no}</TableCell>
                     <TableCell>
                       <div className="text-sm">{u.full_name || "—"}</div>
                       {u.city && <div className="text-xs text-muted-foreground">{u.city}</div>}

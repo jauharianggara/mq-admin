@@ -204,7 +204,7 @@ export default function DepositPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <Head label="No." className="w-12" />
+                  <Head label="No." className="w-10" />
                   <Head label="Pemilik Saldo" />
                   <Head label="Nominal" className="text-right" />
                   <Head label="Alasan" />
@@ -219,9 +219,9 @@ export default function DepositPage() {
                 ) : adjList.items.length === 0 ? (
                   <EmptyRow colSpan={7} message="Belum ada penyesuaian." />
                 ) : (
-                  adjList.items.map((a) => (
+                  adjList.items.map((a, i) => (
                     <TableRow key={a.id}>
-                      <TableCell className="font-mono text-xs text-muted-foreground">{a.id}</TableCell>
+                      <TableCell className="text-muted-foreground">{(adjList.page - 1) * 50 + i + 1}</TableCell>
                       <TableCell className="font-medium">{a.user_name}</TableCell>
                       <TableCell className={`whitespace-nowrap text-right font-semibold ${a.amount > 0 ? "text-green-600" : "text-red-600"}`}>
                         {a.amount > 0 ? "+" : ""}
@@ -279,11 +279,11 @@ export default function DepositPage() {
                 ) : txs.length === 0 ? (
                   <EmptyRow colSpan={6} message="Belum ada mutasi." />
                 ) : (
-                  txs.map((t) => {
+                  txs.map((t, i) => {
                     const credit = txCredit[t.tx_type];
                     return (
                       <TableRow key={t.id}>
-                        <TableCell className="font-mono text-xs text-muted-foreground">{t.id}</TableCell>
+                        <TableCell className="text-muted-foreground">{i + 1}</TableCell>
                         <TableCell className="text-sm">{txLabel[t.tx_type] ?? t.tx_type}</TableCell>
                         <TableCell className={`whitespace-nowrap text-right font-semibold ${credit ? "text-green-600" : "text-red-600"}`}>
                           {credit ? "+" : "-"}
@@ -316,6 +316,7 @@ export default function DepositPage() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <Head label="No." className="w-10" />
                   <Head label="Pengguna" />
                   <Head label="Saldo" className="text-right" />
                   <Head label="" className="text-right" />
@@ -327,9 +328,9 @@ export default function DepositPage() {
                 ) : rows.length === 0 ? (
                   <EmptyRow colSpan={3} message="Tidak ditemukan." />
                 ) : (
-                  rows.map((r) => (
+                  rows.map((r, i) => (
                     <TableRow key={r.user_id} className="hover:bg-muted/50">
-                      <TableCell className="font-medium">{r.full_name}</TableCell>
+                      <TableCell className="text-muted-foreground">{i + 1}</TableCell>                      <TableCell className="font-medium">{r.full_name}</TableCell>
                       <TableCell className={`text-right font-semibold ${r.balance > 0 ? "text-green-700" : "text-muted-foreground"}`}>
                         {rp(r.balance)}
                       </TableCell>

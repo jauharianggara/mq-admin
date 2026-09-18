@@ -246,7 +246,7 @@ export default function CmsPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <Head label="ID" className="w-12" />
+                    <Head label="No." className="w-10" />
                     {entityConfig[e].listColumns.map((col) => (
                       <SortHead
                         key={col}
@@ -270,9 +270,9 @@ export default function CmsPage() {
                     />
                   ) : (
                     e === entity &&
-                    filtered.map((item) => (
+                    filtered.map((item, i) => (
                       <TableRow key={item.id}>
-                        <TableCell className="font-mono text-xs text-muted-foreground">{item.id}</TableCell>
+                        <TableCell className="text-muted-foreground">{i + 1}</TableCell>
                         {entityConfig[e].listColumns.map((col) => {
                           const val = item[col];
                           if (col === "status") {

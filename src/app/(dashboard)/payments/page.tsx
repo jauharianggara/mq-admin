@@ -125,7 +125,7 @@ export default function PaymentsPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <SortHead label="No." col="id" sort={list.sort} order={list.order} onSort={list.toggleSort} className="w-12" />
+              <Head label="No." className="w-12" />
               <Head label="Jenis" />
               <Head label="Untuk" />
               <SortHead label="Nominal" col="amount" sort={list.sort} order={list.order} onSort={list.toggleSort} className="text-right" />
@@ -141,13 +141,13 @@ export default function PaymentsPage() {
             ) : items.length === 0 ? (
               <EmptyRow colSpan={COLS} message="Tidak ada pembayaran sesuai filter." />
             ) : (
-              items.map((p) => (
+              items.map((p, i) => (
                 <TableRow
                   key={p.id}
                   className={p.subject_type === "ustadz_visit" ? "cursor-pointer hover:bg-muted/50" : "hover:bg-muted/50"}
                   onClick={() => p.subject_type === "ustadz_visit" && router.push(`/visits/${p.subject_id}`)}
                 >
-                  <TableCell className="font-mono text-xs text-muted-foreground">{p.id}</TableCell>
+                  <TableCell className="text-muted-foreground">{(list.page - 1) * 50 + i + 1}</TableCell>
                   <TableCell className="text-sm">{jenisLabel[p.subject_type] ?? p.subject_type}</TableCell>
                   <TableCell className="max-w-72">
                     <span className="line-clamp-1 text-sm" title={p.subject_label}>

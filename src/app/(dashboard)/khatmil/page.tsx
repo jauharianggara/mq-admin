@@ -135,7 +135,7 @@ export default function KhatmilPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <SortHead label="ID" col="id" sort={sort} order={order} onSort={toggleSort} className="w-12" />
+                <Head label="No." className="w-10" />
                 <SortHead label="Nama Khatmil" col="name" sort={sort} order={order} onSort={toggleSort} />
                 <Head label="Mode" />
                 <SortHead label="Status" col="status" sort={sort} order={order} onSort={toggleSort} />
@@ -151,9 +151,9 @@ export default function KhatmilPage() {
               ) : filtered.length === 0 ? (
                 <EmptyRow colSpan={COLS} message="Belum ada khatmil sesuai filter." />
               ) : (
-                filtered.map((c) => (
+                filtered.map((c, i) => (
                   <TableRow key={c.id} className="cursor-pointer" onClick={() => router.push(`/khatmil/${c.id}`)}>
-                    <TableCell className="font-mono text-xs text-muted-foreground">#{c.id}</TableCell>
+                    <TableCell className="text-muted-foreground">{i + 1}</TableCell>
                     <TableCell>
                       <div className="text-sm font-medium">{c.name}</div>
                       <div className="text-xs text-muted-foreground">

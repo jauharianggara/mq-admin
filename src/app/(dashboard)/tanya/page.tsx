@@ -125,7 +125,7 @@ export default function TanyaPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <Head label="ID" className="w-12" />
+              <Head label="No." className="w-12" />
               <Head label="Judul" />
               <Head label="Kategori" />
               <Head label="Penanya" />
@@ -140,9 +140,9 @@ export default function TanyaPage() {
             ) : items.length === 0 ? (
               <EmptyRow colSpan={7} message="Antrean moderasi kosong" />
             ) : (
-              items.map((q) => (
+              items.map((q, i) => (
                 <TableRow key={q.id} className="cursor-pointer" onClick={() => openThread(q.id)}>
-                  <TableCell className="font-mono text-xs">{q.id}</TableCell>
+                  <TableCell className="text-muted-foreground">{i + 1}</TableCell>
                   <TableCell className="max-w-64 truncate text-sm font-medium">{q.title}</TableCell>
                   <TableCell>
                     <Badge variant="outline">{q.category_name}</Badge>

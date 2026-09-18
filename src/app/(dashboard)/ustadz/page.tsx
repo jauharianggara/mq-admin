@@ -101,6 +101,7 @@ export default function UstadzPage() {
         <Table>
           <TableHeader>
             <TableRow>
+              <Head label="No." className="w-10" />
               <SortHead label="Nama" col="full_name" sort={list.sort} order={list.order} onSort={list.toggleSort} />
               <Head label="Kontak" />
               <Head label="Pendidikan" />
@@ -118,9 +119,9 @@ export default function UstadzPage() {
             ) : list.items.length === 0 ? (
               <EmptyRow colSpan={COLS} message="Tidak ada ustadz sesuai filter." />
             ) : (
-              list.items.map((u) => (
+              list.items.map((u, i) => (
                 <TableRow key={u.id} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(`/ustadz/${u.id}`)}>
-                  <TableCell>
+                  <TableCell className="text-muted-foreground">{(list.page - 1) * 20 + i + 1}</TableCell>                  <TableCell>
                     <div className="font-medium">
                       {u.full_name}
                       {u.verified && <span className="ml-1 text-green-600" title="Terverifikasi">✓</span>}

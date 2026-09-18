@@ -258,7 +258,7 @@ export default function PayoutsPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <SortHead label="No." col="id" sort={list.sort} order={list.order} onSort={list.toggleSort} className="w-14" />
+              <Head label="No." className="w-14" />
               <Head label="Ustadz" />
               <Head label="Bank / Rekening" />
               <SortHead label="Diterima" col="amount" sort={list.sort} order={list.order} onSort={list.toggleSort} className="text-right" />
@@ -274,9 +274,9 @@ export default function PayoutsPage() {
             ) : items.length === 0 ? (
               <EmptyRow colSpan={COLS} message="Belum ada pengajuan penarikan." />
             ) : (
-              items.map((p) => (
+              items.map((p, i) => (
                 <TableRow key={p.id}>
-                  <TableCell className="font-mono text-xs text-muted-foreground">{p.id}</TableCell>
+                  <TableCell className="text-muted-foreground">{(list.page - 1) * 20 + i + 1}</TableCell>
                   <TableCell className="font-medium">{p.ustadz_name}</TableCell>
                   <TableCell>
                     <div className="text-sm">

@@ -186,7 +186,7 @@ export default function MateriPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <SortHead label="ID" col="id" sort={sort} order={order} onSort={toggleSort} className="w-12" />
+              <Head label="No." className="w-10" />
               <SortHead label="Judul" col="title" sort={sort} order={order} onSort={toggleSort} />
               <SortHead label="Slug" col="slug" sort={sort} order={order} onSort={toggleSort} />
               <Head label="Rule Tajwid" />
@@ -201,9 +201,9 @@ export default function MateriPage() {
             ) : filtered.length === 0 ? (
               <EmptyRow colSpan={COLS} message="Belum ada materi sesuai filter." />
             ) : (
-              filtered.map((m) => (
+              filtered.map((m, i) => (
                 <TableRow key={m.id}>
-                  <TableCell className="font-mono text-xs text-muted-foreground">{m.id}</TableCell>
+                  <TableCell className="text-muted-foreground">{i + 1}</TableCell>
                   <TableCell className="text-sm font-medium">{m.title}</TableCell>
                   <TableCell className="font-mono text-xs text-muted-foreground">{m.slug}</TableCell>
                   <TableCell>

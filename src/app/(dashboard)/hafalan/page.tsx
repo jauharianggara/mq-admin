@@ -158,7 +158,7 @@ export default function HafalanPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <Head label="ID" className="w-12" />
+              <Head label="No." className="w-12" />
               <Head label="Santri" />
               <Head label="Surah" />
               <Head label="Ayat" />
@@ -174,9 +174,9 @@ export default function HafalanPage() {
             ) : items.length === 0 ? (
               <EmptyRow colSpan={8} message="Tidak ada setoran pada filter ini" />
             ) : (
-              items.map((s) => (
+              items.map((s, i) => (
                 <TableRow key={s.id} className="cursor-pointer" onClick={() => openDetail(s.id)}>
-                  <TableCell className="font-mono text-xs">{s.id}</TableCell>
+                  <TableCell className="text-muted-foreground">{i + 1}</TableCell>
                   <TableCell className="text-sm">{s.user_name ?? `#${s.user_id}`}</TableCell>
                   <TableCell className="text-sm">{s.surah_name}</TableCell>
                   <TableCell className="text-sm font-mono">{s.ayah_start}-{s.ayah_end}</TableCell>

@@ -95,6 +95,7 @@ export default function SantriPage() {
         <Table>
           <TableHeader>
             <TableRow>
+              <Head label="No." className="w-10" />
               <SortHead label="Nama" col="full_name" sort={list.sort} order={list.order} onSort={list.toggleSort} />
               <Head label="Kontak" />
               <Head label="Kota" />
@@ -111,9 +112,9 @@ export default function SantriPage() {
             ) : list.items.length === 0 ? (
               <EmptyRow colSpan={COLS} message="Tidak ada santri sesuai filter." />
             ) : (
-              list.items.map((s) => (
+              list.items.map((s, i) => (
                 <TableRow key={s.id} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(`/santri/${s.id}`)}>
-                  <TableCell>
+                  <TableCell className="text-muted-foreground">{(list.page - 1) * 20 + i + 1}</TableCell>                  <TableCell>
                     <div className="font-medium">{s.full_name}</div>
                     <div className="text-xs text-muted-foreground">#{s.id}</div>
                   </TableCell>
