@@ -2,11 +2,20 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { apiGet } from "@/lib/api";
+import { apiGet, apiPost } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Table,
   TableBody,
@@ -21,6 +30,7 @@ import {
   ActivityEvent,
   Avatar,
   CampaignDetail,
+  GroupLite,
   isTerminal,
   MiniBar,
   Participant,
@@ -28,6 +38,13 @@ import {
   STATUS_LABEL,
   timeAgo,
 } from "../shared";
+
+interface UstadzOption {
+  id: number;
+  full_name: string;
+  city: string | null;
+  verified: boolean;
+}
 
 /** Detail campaign — HALAMAN PENUH 5 tab (rev 3.4: bukan dialog). */
 export default function KhatmilDetailPage() {
@@ -38,6 +55,13 @@ export default function KhatmilDetailPage() {
   const [activity, setActivity] = useState<ActivityEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedJuz, setSelectedJuz] = useState<number | null>(null);
+
+  // ---- dialog assign pembina kelompok ----
+  const [assignGroup, setAssignGroup] = useState<number | null>(null); // group_no aktif
+  const [ustQuery, setUstQuery] = useState("");
+  const [ustList, setUstList] = useState<UstadzOption[]>([]);
+  const [ustLoading, setUstLoading] = useState(false);
+  const [assignBusy, setAssignBusy] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -60,6 +84,44 @@ export default function KhatmilDetailPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // muat daftar ustadz utk dialog assign (debounce 350ms, hanya saat dialog terbuka)
+  useEffect(() => {
+    if (assignGroup == null) return;
+    const t = setTimeout(async () => {
+      setUstLoading(true);
+      try {
+        const qs = new URLSearchParams({ limit: "20" });
+        if (ustQuery.trim()) qs.set("q", ustQuery.trim());
+        // apiGet sudah unwrap envelope {data:[...]} -> hasil = array langsung
+        const res = await apiGet<UstadzOption[]>(`/admin/ustadz?${qs.toString()}`);
+        setUstList(Array.isArray(res) ? res : []);
+      } catch {
+        setUstList([]);
+      } finally {
+        setUstLoading(false);
+      }
+    }, 350);
+    return () => clearTimeout(t);
+  }, [assignGroup, ustQuery]);
+
+  async function assignPembina(groupNo: number, ustadzId: number, nama: string) {
+    if (!detail) return;
+    setAssignBusy(true);
+    try {
+      await apiPost(`/khatmil/campaigns/${detail.id}/groups/${groupNo}/assign-pembina`, {
+        ustadz_id: ustadzId,
+      });
+      toast.success(`Kelompok ${groupNo} → ${nama} — menunggu ACC ustadz`);
+      setAssignGroup(null);
+      setUstQuery("");
+      load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Gagal menugaskan pembina");
+    } finally {
+      setAssignBusy(false);
+    }
+  }
 
   const ranked = useMemo(
     () =>
@@ -108,6 +170,7 @@ export default function KhatmilDetailPage() {
       <Tabs defaultValue="ringkasan">
         <TabsList className="flex-wrap">
           <TabsTrigger value="ringkasan">Ringkasan</TabsTrigger>
+          <TabsTrigger value="kelompok">Kelompok</TabsTrigger>
           <TabsTrigger value="peta">Peta Juz</TabsTrigger>
           <TabsTrigger value="peserta">Peserta</TabsTrigger>
           <TabsTrigger value="aktivitas">Aktivitas</TabsTrigger>
@@ -116,10 +179,11 @@ export default function KhatmilDetailPage() {
 
         {/* ---- Ringkasan ---- */}
         <TabsContent value="ringkasan" className="space-y-4">
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
             {[
+              { l: "Kelompok", v: String(detail.group_count ?? detail.groups?.length ?? 1) },
               { l: "Peserta", v: String(detail.participants) },
-              { l: "Juz Selesai", v: `${detail.juz_completed}/${30 * detail.target_khataman}` },
+              { l: "Juz Selesai", v: `${detail.juz_completed}/${30 * (detail.group_count ?? detail.target_khataman)}` },
               { l: "Juz Kosong", v: String(detail.juz_map.filter((j) => !j.status).length) },
               { l: "Progress", v: `${detail.progress_pct}%` },
             ].map((s) => (
@@ -131,7 +195,7 @@ export default function KhatmilDetailPage() {
           </div>
           <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
             <span>
-              Target khataman: <b className="text-foreground">{detail.target_khataman || "—"}</b>
+              Kelompok: <b className="text-foreground">{detail.group_count ?? detail.groups?.length ?? 1}</b>
             </span>
             <span>
               Verifikasi:{" "}
@@ -161,8 +225,66 @@ export default function KhatmilDetailPage() {
           )}
         </TabsContent>
 
+        {/* ---- Kelompok ---- */}
+        <TabsContent value="kelompok" className="space-y-3">
+          {(detail.groups ?? []).length === 0 ? (
+            <div className="py-6 text-center text-sm text-muted-foreground">
+              Kelompok belum tersedia untuk campaign ini
+            </div>
+          ) : (
+            (detail.groups ?? []).map((g: GroupLite) => (
+              <div key={g.id} className="flex flex-wrap items-center gap-3 rounded-lg border p-4">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
+                  {g.group_no}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-semibold">Kelompok {g.group_no}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {g.member_count}/30 juz terisi
+                    {g.pembina ? (
+                      <>
+                        {" "}· Pembina: <b className="text-foreground">{g.pembina}</b>
+                      </>
+                    ) : g.pending_pembina ? (
+                      <>
+                        {" "}· Menunggu ACC: <b className="text-foreground">{g.pending_pembina}</b>
+                      </>
+                    ) : (
+                      <>{" "}· belum ada pembina</>
+                    )}
+                  </div>
+                </div>
+                {g.pembina ? (
+                  <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">
+                    Pembina resmi
+                  </Badge>
+                ) : g.pending_pembina ? (
+                  <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">
+                    Menunggu ACC
+                  </Badge>
+                ) : null}
+                {!isTerminal(detail.status) && (
+                  <Button variant="outline" size="sm" onClick={() => setAssignGroup(g.group_no)}>
+                    {g.pembina || g.pending_pembina ? "Ganti Pembina" : "Tetapkan Pembina"}
+                  </Button>
+                )}
+              </div>
+            ))
+          )}
+          <p className="text-xs text-muted-foreground">
+            Penugasan dua langkah: tetapkan di sini → ustadz menerima notifikasi → ACC di aplikasi ustadz →
+            menjadi pembina resmi.
+          </p>
+        </TabsContent>
+
         {/* ---- Peta Juz ---- */}
         <TabsContent value="peta" className="space-y-3">
+          {(detail.group_count ?? 1) > 1 && (
+            <p className="text-xs text-muted-foreground">
+              Peta ini menggabungkan semua {detail.group_count} kelompok (menampilkan assignment terbaru per
+              juz).
+            </p>
+          )}
           <div className="grid grid-cols-6 gap-1.5 sm:grid-cols-10">
             {detail.juz_map.map((j) => (
               <button
@@ -373,7 +495,7 @@ export default function KhatmilDetailPage() {
               <span className="text-2xl font-bold tabular-nums text-primary">
                 {detail.progress_pct}%
                 <span className="ml-1 text-xs font-medium text-muted-foreground">
-                  · {detail.juz_completed}/{30 * detail.target_khataman} juz
+                  · {detail.juz_completed}/{30 * (detail.group_count ?? detail.target_khataman)} juz
                 </span>
               </span>
             </div>
@@ -505,6 +627,53 @@ export default function KhatmilDetailPage() {
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* ---- Dialog: tetapkan pembina kelompok ---- */}
+      <Dialog open={assignGroup != null} onOpenChange={(o) => !o && setAssignGroup(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Tetapkan Pembina — Kelompok {assignGroup}</DialogTitle>
+            <DialogDescription>
+              Pilih ustadz; penugasan berlaku setelah di-ACC ustadz di aplikasinya.
+            </DialogDescription>
+          </DialogHeader>
+          <Input
+            placeholder="Cari nama ustadz…"
+            value={ustQuery}
+            onChange={(e) => setUstQuery(e.target.value)}
+          />
+          <div className="max-h-72 space-y-1 overflow-y-auto">
+            {ustLoading && (
+              <div className="py-4 text-center text-sm text-muted-foreground">Memuat…</div>
+            )}
+            {!ustLoading && ustList.length === 0 && (
+              <div className="py-4 text-center text-sm text-muted-foreground">
+                Tidak ada ustadz ditemukan
+              </div>
+            )}
+            {ustList.map((u) => (
+              <button
+                key={u.id}
+                disabled={assignBusy}
+                onClick={() => assignPembina(assignGroup!, u.id, u.full_name)}
+                className="flex w-full items-center gap-2 rounded-lg border p-2 text-left transition-colors hover:bg-muted disabled:opacity-50"
+              >
+                <Avatar name={u.full_name} />
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-medium">{u.full_name}</div>
+                  <div className="truncate text-xs text-muted-foreground">
+                    {u.city || "tanpa kota"}
+                    {u.verified ? " · Terverifikasi" : ""}
+                  </div>
+                </div>
+                <span className="shrink-0 text-xs font-semibold text-primary">
+                  {assignBusy ? "Menugaskan…" : "Tugaskan →"}
+                </span>
+              </button>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

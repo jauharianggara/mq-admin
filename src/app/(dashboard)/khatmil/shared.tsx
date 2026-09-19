@@ -29,6 +29,7 @@ export interface Campaign {
   mode: string;
   status: string;
   target_khataman: number;
+  group_count: number;
   require_manual_verification: boolean;
   participants: number;
   juz_completed: number;
@@ -47,8 +48,17 @@ export interface JuzSlot {
   completed_at: string | null;
 }
 
+export interface GroupLite {
+  id: number;
+  group_no: number;
+  member_count: number;
+  pembina?: string | null;
+  pending_pembina?: string | null;
+}
+
 export interface CampaignDetail extends Campaign {
   juz_map: JuzSlot[];
+  groups?: GroupLite[];
   period_start: string | null;
   period_end: string | null;
 }
@@ -165,6 +175,7 @@ export async function patchCampaign(c: Campaign, patch: Partial<Campaign> & Reco
     mode: patch.mode ?? c.mode,
     status: patch.status ?? c.status,
     target_khataman: patch.target_khataman ?? c.target_khataman,
+    group_count: patch.group_count ?? c.group_count ?? 1,
     period_start: patch.period_start !== undefined ? patch.period_start : base.period_start ?? null,
     period_end: patch.period_end !== undefined ? patch.period_end : base.period_end ?? null,
     require_manual_verification: patch.require_manual_verification ?? c.require_manual_verification,
@@ -198,7 +209,7 @@ export function CampaignForm({
     description: "",
     mode: "PARALLEL",
     status: "DRAFT",
-    target_khataman: "1",
+    group_count: "1",
     max_participants: "",
     period_start: "",
     period_end: "",
@@ -210,7 +221,7 @@ export function CampaignForm({
     if (isNew) {
       setForm({
         slug: "", name: "", description: "", mode: "PARALLEL", status: "DRAFT",
-        target_khataman: "1", max_participants: "", period_start: "", period_end: "",
+        group_count: "1", max_participants: "", period_start: "", period_end: "",
         require_manual_verification: false,
       });
     } else if (c) {
@@ -220,7 +231,7 @@ export function CampaignForm({
         description: c.description ?? "",
         mode: c.mode,
         status: c.status,
-        target_khataman: String(c.target_khataman),
+        group_count: String(c.group_count ?? c.target_khataman ?? 1),
         max_participants: c.max_participants != null ? String(c.max_participants) : "",
         period_start: "",
         period_end: "",
@@ -238,13 +249,15 @@ export function CampaignForm({
     setBusy(true);
     try {
       if (isNew) {
+        const gc = Number(form.group_count) || 1;
         await apiPost("/khatmil/campaigns", {
           slug: form.slug,
           name: form.name,
           description: form.description || undefined,
           mode: form.mode,
           status: form.status,
-          target_khataman: Number(form.target_khataman) || 1,
+          group_count: gc,
+          target_khataman: gc,
           require_manual_verification: form.require_manual_verification,
           ...(form.max_participants ? { max_participants: Number(form.max_participants) } : {}),
           ...(form.period_start ? { period_start: form.period_start } : {}),
@@ -253,6 +266,7 @@ export function CampaignForm({
         toast.success("Campaign dibuat");
         onDone();
       } else if (c) {
+        const gc = Number(form.group_count) || 1;
         await patchCampaign(
           c,
           {
@@ -260,7 +274,8 @@ export function CampaignForm({
             description: form.description,
             mode: form.mode,
             status: form.status,
-            target_khataman: Number(form.target_khataman) || 1,
+            group_count: gc,
+            target_khataman: gc,
             require_manual_verification: form.require_manual_verification,
             max_participants: form.max_participants ? Number(form.max_participants) : null,
             period_start: form.period_start || null,
@@ -293,7 +308,7 @@ export function CampaignForm({
 
       {c && !isNew && (
         <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs text-emerald-800">
-          <b>{c.name}</b> — {STATUS_LABEL[c.status]} · {c.participants} peserta · {c.juz_completed} dari {30 * c.target_khataman} juz selesai
+          <b>{c.name}</b> — {STATUS_LABEL[c.status]} · {c.participants} peserta · {c.juz_completed} dari {30 * (c.group_count ?? c.target_khataman)} juz selesai · {c.group_count ?? 1} kelompok
         </div>
       )}
       {locked && (
@@ -355,15 +370,25 @@ export function CampaignForm({
               </Select>
             </div>
             <div className="space-y-1">
-              <Label>Target Khataman</Label>
-              <Input
-                type="number"
-                min={0}
-                value={form.target_khataman}
-                disabled={locked}
-                onChange={(e) => setForm({ ...form, target_khataman: e.target.value })}
-              />
-              <p className="text-xs text-muted-foreground">Berapa kali 30 juz dituntaskan (0 = tanpa target).</p>
+              <Label>Jumlah Kelompok</Label>
+              <Select
+                value={form.group_count}
+                onValueChange={(v) => setForm({ ...form, group_count: v ?? "1" })}
+              >
+                <SelectTrigger disabled={locked}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: 10 }, (_, i) => String(i + 1)).map((n) => (
+                    <SelectItem key={n} value={n}>
+                      {n} kelompok
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Setiap kelompok = 1 set 30 juz, dibina 1 ustadz. Santri memilih kelompok sendiri saat klaim juz.
+              </p>
             </div>
             <div className="space-y-1">
               <Label>Kuota Peserta (opsional)</Label>

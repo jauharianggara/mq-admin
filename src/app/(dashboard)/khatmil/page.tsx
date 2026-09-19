@@ -173,7 +173,10 @@ export default function KhatmilPage() {
                     </TableCell>
                     <TableCell className="text-center text-sm">{c.participants}</TableCell>
                     <TableCell className="whitespace-nowrap text-center text-sm">
-                      {c.juz_completed} dari {30 * c.target_khataman} juz selesai
+                      {c.juz_completed} dari {30 * (c.group_count ?? c.target_khataman)} juz selesai
+                      {(c.group_count ?? 1) > 1 && (
+                        <span className="ml-1 text-xs text-muted-foreground">· {c.group_count} kelompok</span>
+                      )}
                     </TableCell>
                     <TableCell onClick={(e) => e.stopPropagation()}>
                       <MiniBar pct={c.progress_pct} />
@@ -248,7 +251,8 @@ export default function KhatmilPage() {
               <div className="mt-2 flex items-center gap-2">
                 <MiniBar pct={c.progress_pct} className="flex-1" />
                 <span className="whitespace-nowrap text-xs font-semibold text-primary">
-                  {c.juz_completed}/{30 * c.target_khataman} juz selesai
+                  {c.juz_completed}/{30 * (c.group_count ?? c.target_khataman)} juz
+                  {(c.group_count ?? 1) > 1 ? ` · ${c.group_count} klp` : ""}
                 </span>
                 <span className="text-muted-foreground">›</span>
               </div>
