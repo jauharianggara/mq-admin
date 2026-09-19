@@ -56,9 +56,16 @@ export interface GroupLite {
   pending_pembina?: string | null;
 }
 
+export interface GroupJuzMap {
+  group_no: number;
+  group_id: number;
+  slots: JuzSlot[];
+}
+
 export interface CampaignDetail extends Campaign {
   juz_map: JuzSlot[];
   groups?: GroupLite[];
+  juz_map_groups?: GroupJuzMap[];
   period_start: string | null;
   period_end: string | null;
 }

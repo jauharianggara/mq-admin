@@ -54,7 +54,7 @@ export default function KhatmilDetailPage() {
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [activity, setActivity] = useState<ActivityEvent[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedJuz, setSelectedJuz] = useState<number | null>(null);
+  const [sel, setSel] = useState<{ g: number; j: number } | null>(null); // juz terpilih per kelompok
 
   // ---- dialog assign pembina kelompok ----
   const [assignGroup, setAssignGroup] = useState<number | null>(null); // group_no aktif
@@ -141,7 +141,28 @@ export default function KhatmilDetailPage() {
     );
   }
 
-  const slot = selectedJuz != null ? detail.juz_map.find((j) => j.juz === selectedJuz) : null;
+  // peta juz PER KELOMPOK (fallback juz_map flat utk BE lama)
+  const petaGroups = (() => {
+    const gmg = detail?.juz_map_groups ?? [];
+    if (gmg.length > 0) {
+      return gmg.map((gm) => ({
+        group_no: gm.group_no,
+        pembina: detail?.groups?.find((g) => g.group_no === gm.group_no)?.pembina ?? null,
+        slots: gm.slots,
+      }));
+    }
+    return [
+      {
+        group_no: 1,
+        pembina: detail?.groups?.[0]?.pembina ?? null,
+        slots: detail?.juz_map ?? [],
+      },
+    ];
+  })();
+  const multiGroup = petaGroups.length > 1;
+  const slot = sel
+    ? petaGroups.find((x) => x.group_no === sel.g)?.slots.find((s) => s.juz === sel.j) ?? null
+    : null;
 
   return (
     <div className="mx-auto max-w-4xl space-y-5">
@@ -277,19 +298,29 @@ export default function KhatmilDetailPage() {
           </p>
         </TabsContent>
 
-        {/* ---- Peta Juz ---- */}
-        <TabsContent value="peta" className="space-y-3">
-          {(detail.group_count ?? 1) > 1 && (
-            <p className="text-xs text-muted-foreground">
-              Peta ini menggabungkan semua {detail.group_count} kelompok (menampilkan assignment terbaru per
-              juz).
-            </p>
-          )}
-          <div className="grid grid-cols-6 gap-1.5 sm:grid-cols-10">
-            {detail.juz_map.map((j) => (
-              <button
-                key={j.juz}
-                onClick={() => setSelectedJuz(selectedJuz === j.juz ? null : j.juz)}
+        {/* ---- Peta Juz (per kelompok) ---- */}
+        <TabsContent value="peta" className="space-y-4">
+          {petaGroups.map((pg) => (
+            <div key={pg.group_no} className="space-y-2">
+              {multiGroup && (
+                <div className="flex flex-wrap items-baseline gap-2">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+                    {pg.group_no}
+                  </span>
+                  <span className="text-sm font-semibold">Kelompok {pg.group_no}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {pg.pembina ? `Pembina: ${pg.pembina}` : "belum ada pembina"} ·{" "}
+                    {pg.slots.filter((s) => s.status).length}/30 juz terisi
+                  </span>
+                </div>
+              )}
+              <div className="grid grid-cols-6 gap-1.5 sm:grid-cols-10">
+                {pg.slots.map((j) => (
+                  <button
+                    key={j.juz}
+                    onClick={() =>
+                      setSel(sel && sel.g === pg.group_no && sel.j === j.juz ? null : { g: pg.group_no, j: j.juz })
+                    }
                 title={j.status ? `Juz ${j.juz}: ${j.owner_name ?? "?"} — ${j.status}` : `Juz ${j.juz}: kosong`}
                 className={`flex h-10 items-center justify-center rounded-md border text-xs font-medium transition-sm ${
                   j.status === "COMPLETED"
@@ -297,12 +328,14 @@ export default function KhatmilDetailPage() {
                     : j.status
                       ? "border-amber-300 bg-amber-100 text-amber-800"
                       : "border-dashed text-muted-foreground hover:bg-muted"
-                } ${selectedJuz === j.juz ? "ring-2 ring-primary ring-offset-1" : ""}`}
+                } ${sel && sel.g === pg.group_no && sel.j === j.juz ? "ring-2 ring-primary ring-offset-1" : ""}`}
               >
                 {j.juz}
               </button>
-            ))}
-          </div>
+                ))}
+              </div>
+            </div>
+          ))}
           <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
             <span>🟩 Selesai</span>
             <span>🟨 Aktif dipegang</span>
@@ -310,7 +343,7 @@ export default function KhatmilDetailPage() {
           </div>
           {slot && (
             <div className="rounded-lg border bg-muted/40 p-4 text-sm">
-              <b>Juz {slot.juz}</b>
+              <b>{multiGroup && `Kelompok ${sel!.g} · `}Juz {slot.juz}</b>
               {!slot.status ? (
                 <span className="ml-2 text-muted-foreground">kosong — belum diklaim</span>
               ) : (
