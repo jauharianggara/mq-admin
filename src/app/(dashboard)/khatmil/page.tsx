@@ -27,7 +27,7 @@ import {
 } from "@/components/data-table";
 import { statusLabel } from "@/components/status-pill";
 import { fmtDateInput } from "@/lib/format";
-import { Campaign, MiniBar, patchCampaign, StatusBadge, STATUS_LABEL } from "./shared";
+import { Campaign, groupProgressList, MiniBar, patchCampaign, StatusBadge, STATUS_LABEL } from "./shared";
 
 /** List campaign — full-fetch + filter/sort client-side (data khatmil kecil). Detail/form = halaman terpisah. */
 const STATUS_ORDER = ["ACTIVE", "SCHEDULED", "DRAFT", "COMPLETED", "CANCELLED"];
@@ -172,10 +172,33 @@ export default function KhatmilPage() {
                       <StatusBadge status={c.status} />
                     </TableCell>
                     <TableCell className="text-center text-sm">{c.participants}</TableCell>
-                    <TableCell className="whitespace-nowrap text-center text-sm">
-                      {c.juz_completed} dari {30 * (c.group_count ?? c.target_khataman)} juz selesai
-                      {(c.group_count ?? 1) > 1 && (
-                        <span className="ml-1 text-xs text-muted-foreground">· {c.group_count} kelompok</span>
+                    <TableCell className="text-sm">
+                      {(c.group_count ?? 1) > 1 ?
+                        c.groups_progress?.length ? (
+                          <div className="space-y-0.5">
+                            {groupProgressList(c).map((g) => (
+                              <div key={g.group_no} className="whitespace-nowrap text-xs leading-tight">
+                                <span className="text-muted-foreground">Kelompok {g.group_no}:</span>{" "}
+                                <span
+                                  className={
+                                    g.completed_juz >= 30
+                                      ? "font-semibold text-emerald-600"
+                                      : undefined
+                                  }
+                                >
+                                  {g.completed_juz} dari 30 juz selesai
+                                  {g.completed_juz >= 30 ? " · KHATAM" : ""}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="whitespace-nowrap text-xs text-muted-foreground">
+                            {c.group_count} kelompok
+                          </span>
+                        )
+                      : (
+                        <span className="whitespace-nowrap">{c.juz_completed} dari 30 juz selesai</span>
                       )}
                     </TableCell>
                     <TableCell onClick={(e) => e.stopPropagation()}>
@@ -248,13 +271,28 @@ export default function KhatmilPage() {
                   </>
                 )}
               </div>
-              <div className="mt-2 flex items-center gap-2">
-                <MiniBar pct={c.progress_pct} className="flex-1" />
-                <span className="whitespace-nowrap text-xs font-semibold text-primary">
-                  {c.juz_completed}/{30 * (c.group_count ?? c.target_khataman)} juz
-                  {(c.group_count ?? 1) > 1 ? ` · ${c.group_count} klp` : ""}
-                </span>
-                <span className="text-muted-foreground">›</span>
+              <div className="mt-2 space-y-1">
+                {(c.group_count ?? 1) > 1 && c.groups_progress?.length ? (
+                  <div className="flex flex-wrap gap-x-2 gap-y-0.5 text-[11px] leading-tight text-muted-foreground">
+                    {c.groups_progress.map((g) => (
+                      <span
+                        key={g.group_no}
+                        className={g.completed_juz >= 30 ? "font-semibold text-emerald-600" : undefined}
+                      >
+                        K{g.group_no} · {g.completed_juz}/30 juz{g.completed_juz >= 30 ? " ✓" : ""}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+                <div className="flex items-center gap-2">
+                  <MiniBar pct={c.progress_pct} className="flex-1" />
+                  <span className="whitespace-nowrap text-xs font-semibold text-primary">
+                    {(c.group_count ?? 1) > 1
+                      ? `${c.group_count} kelompok`
+                      : `${c.juz_completed}/30 juz`}
+                  </span>
+                  <span className="text-muted-foreground">›</span>
+                </div>
               </div>
             </button>
           ))

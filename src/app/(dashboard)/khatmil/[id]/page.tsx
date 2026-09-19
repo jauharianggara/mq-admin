@@ -160,6 +160,14 @@ export default function KhatmilDetailPage() {
     ];
   })();
   const multiGroup = petaGroups.length > 1;
+  // breakdown per kelompok utk Ringkasan/Peringkat/tab Kelompok (rev 3)
+  const gprog = petaGroups.map((pg) => ({
+    group_no: pg.group_no,
+    done: pg.slots.filter((s) => s.status === "COMPLETED").length,
+  }));
+  const khatamCount = gprog.filter((g) => g.done >= 30).length;
+  const pembinaCount = (detail.groups ?? []).filter((g) => g.pembina).length;
+  const doneByNo = new Map(gprog.map((g) => [g.group_no, g.done]));
   const slot = sel
     ? petaGroups.find((x) => x.group_no === sel.g)?.slots.find((s) => s.juz === sel.j) ?? null
     : null;
@@ -201,19 +209,44 @@ export default function KhatmilDetailPage() {
         {/* ---- Ringkasan ---- */}
         <TabsContent value="ringkasan" className="space-y-4">
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-            {[
-              { l: "Kelompok", v: String(detail.group_count ?? detail.groups?.length ?? 1) },
-              { l: "Peserta", v: String(detail.participants) },
-              { l: "Juz Selesai", v: `${detail.juz_completed}/${30 * (detail.group_count ?? detail.target_khataman)}` },
-              { l: "Juz Kosong", v: String(detail.juz_map.filter((j) => !j.status).length) },
-              { l: "Progress", v: `${detail.progress_pct}%` },
-            ].map((s) => (
+            {(multiGroup
+              ? [
+                  { l: "Kelompok", v: String(detail.group_count ?? gprog.length) },
+                  { l: "Peserta", v: String(detail.participants) },
+                  { l: "Kelompok Khatam", v: `${khatamCount} dari ${gprog.length}` },
+                  { l: "Pembina", v: `${pembinaCount} dari ${gprog.length}` },
+                  { l: "Progress", v: `${detail.progress_pct}%` },
+                ]
+              : [
+                  { l: "Kelompok", v: "1" },
+                  { l: "Peserta", v: String(detail.participants) },
+                  { l: "Juz Selesai", v: `${detail.juz_completed} dari 30` },
+                  { l: "Juz Kosong", v: String(detail.juz_map.filter((j) => !j.status).length) },
+                  { l: "Progress", v: `${detail.progress_pct}%` },
+                ]
+            ).map((s) => (
               <div key={s.l} className="rounded-lg border p-3">
                 <div className="text-xs text-muted-foreground">{s.l}</div>
                 <div className="mt-1 text-xl font-semibold">{s.v}</div>
               </div>
             ))}
           </div>
+          {multiGroup && gprog.length > 1 && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              {gprog.map((g) => (
+                <span
+                  key={g.group_no}
+                  className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs ${
+                    g.done >= 30
+                      ? "border-emerald-200 bg-emerald-50 font-semibold text-emerald-700"
+                      : "text-muted-foreground"
+                  }`}
+                >
+                  Kelompok {g.group_no} · {g.done} dari 30 juz{g.done >= 30 ? " · KHATAM" : ""}
+                </span>
+              ))}
+            </div>
+          )}
           <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
             <span>
               Kelompok: <b className="text-foreground">{detail.group_count ?? detail.groups?.length ?? 1}</b>
@@ -261,7 +294,10 @@ export default function KhatmilDetailPage() {
                 <div className="min-w-0 flex-1">
                   <div className="text-sm font-semibold">Kelompok {g.group_no}</div>
                   <div className="text-xs text-muted-foreground">
-                    {g.member_count}/30 juz terisi
+                    <span className="font-medium text-foreground">
+                      {doneByNo.get(g.group_no) ?? 0} dari 30 juz selesai
+                    </span>{" "}
+                    · {g.member_count}/30 juz terisi
                     {g.pembina ? (
                       <>
                         {" "}· Pembina: <b className="text-foreground">{g.pembina}</b>
@@ -275,6 +311,22 @@ export default function KhatmilDetailPage() {
                     )}
                   </div>
                 </div>
+                <Badge
+                  variant="outline"
+                  className={
+                    (doneByNo.get(g.group_no) ?? 0) >= 30
+                      ? "border-emerald-300 bg-emerald-50 font-semibold text-emerald-700"
+                      : g.member_count >= 30
+                        ? "border-amber-200 bg-amber-50 text-amber-700"
+                        : "border-slate-200 bg-slate-50 text-slate-600"
+                  }
+                >
+                  {(doneByNo.get(g.group_no) ?? 0) >= 30
+                    ? "KHATAM"
+                    : g.member_count >= 30
+                      ? "Penuh"
+                      : "Terbuka"}
+                </Badge>
                 {g.pembina ? (
                   <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">
                     Pembina resmi
@@ -523,36 +575,72 @@ export default function KhatmilDetailPage() {
         {/* ---- Peringkat ---- */}
         <TabsContent value="peringkat" className="space-y-4">
           <div className="rounded-lg border bg-gradient-to-b from-primary/5 to-transparent p-4">
-            <div className="flex items-baseline justify-between">
-              <span className="text-sm font-semibold">Total Progres Khataman</span>
-              <span className="text-2xl font-bold tabular-nums text-primary">
-                {detail.progress_pct}%
-                <span className="ml-1 text-xs font-medium text-muted-foreground">
-                  · {detail.juz_completed}/{30 * (detail.group_count ?? detail.target_khataman)} juz
-                </span>
-              </span>
-            </div>
-            <div className="mt-2 flex gap-0.5">
-              {detail.juz_map.map((j) => (
-                <div
-                  key={j.juz}
-                  title={`Juz ${j.juz}${j.status ? ` — ${j.status}` : " — kosong"}`}
-                  className={`h-3.5 flex-1 rounded-sm ${
-                    j.status === "COMPLETED" ? "bg-primary" : j.status ? "bg-amber-400/80" : "bg-muted"
-                  }`}
-                />
-              ))}
-            </div>
-            <div className="mt-1.5 flex flex-wrap justify-between gap-1 text-xs text-muted-foreground">
-              <span>
-                <b>{detail.juz_map.filter((j) => j.status === "COMPLETED").length} selesai</b> ·{" "}
-                {detail.juz_map.filter((j) => j.status && j.status !== "COMPLETED").length} dibaca ·{" "}
-                {detail.juz_map.filter((j) => !j.status).length} kosong
-              </span>
-              <span>
-                <b>{participants.filter((p) => p.juz_done_count > 0).length} peserta</b> menyumbang
-              </span>
-            </div>
+            {multiGroup && gprog.length > 1 ? (
+              <>
+                <div className="flex items-baseline justify-between">
+                  <span className="text-sm font-semibold">Khataman per Kelompok</span>
+                  <span className="text-2xl font-bold tabular-nums text-primary">
+                    {khatamCount}
+                    <span className="ml-1 text-xs font-medium text-muted-foreground">
+                      dari {gprog.length} kelompok khatam
+                    </span>
+                  </span>
+                </div>
+                <div className="mt-2 flex gap-1">
+                  {gprog.map((g) => (
+                    <div
+                      key={g.group_no}
+                      title={`Kelompok ${g.group_no} — ${g.done} dari 30 juz selesai`}
+                      className={`h-3.5 flex-1 rounded-sm ${
+                        g.done >= 30 ? "bg-emerald-500" : g.done > 0 ? "bg-amber-400/80" : "bg-muted"
+                      }`}
+                    />
+                  ))}
+                </div>
+                <div className="mt-1.5 flex flex-wrap justify-between gap-1 text-xs text-muted-foreground">
+                  <span>
+                    <b>{khatamCount} kelompok khatam</b> · {gprog.filter((g) => g.done > 0).length} kelompok
+                    berjalan
+                  </span>
+                  <span>
+                    <b>{participants.filter((p) => p.juz_done_count > 0).length} peserta</b> menyumbang
+                  </span>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex items-baseline justify-between">
+                  <span className="text-sm font-semibold">Total Progres Khataman</span>
+                  <span className="text-2xl font-bold tabular-nums text-primary">
+                    {detail.progress_pct}%
+                    <span className="ml-1 text-xs font-medium text-muted-foreground">
+                      · {detail.juz_completed} dari 30 juz
+                    </span>
+                  </span>
+                </div>
+                <div className="mt-2 flex gap-0.5">
+                  {detail.juz_map.map((j) => (
+                    <div
+                      key={j.juz}
+                      title={`Juz ${j.juz}${j.status ? ` — ${j.status}` : " — kosong"}`}
+                      className={`h-3.5 flex-1 rounded-sm ${
+                        j.status === "COMPLETED" ? "bg-primary" : j.status ? "bg-amber-400/80" : "bg-muted"
+                      }`}
+                    />
+                  ))}
+                </div>
+                <div className="mt-1.5 flex flex-wrap justify-between gap-1 text-xs text-muted-foreground">
+                  <span>
+                    <b>{detail.juz_map.filter((j) => j.status === "COMPLETED").length} selesai</b> ·{" "}
+                    {detail.juz_map.filter((j) => j.status && j.status !== "COMPLETED").length} dibaca ·{" "}
+                    {detail.juz_map.filter((j) => !j.status).length} kosong
+                  </span>
+                  <span>
+                    <b>{participants.filter((p) => p.juz_done_count > 0).length} peserta</b> menyumbang
+                  </span>
+                </div>
+              </>
+            )}
           </div>
 
           {ranked.filter((p) => p.juz_done_count > 0).length > 0 && (

@@ -36,6 +36,22 @@ export interface Campaign {
   progress_pct: number;
   period_start?: string | null;
   period_end?: string | null;
+  /** Rincian progres per kelompok (multi-kelompok — rev 3) */
+  groups_progress?: GroupProgress[];
+}
+
+export interface GroupProgress {
+  group_no: number;
+  member_count: number;
+  completed_juz: number;
+}
+
+/** Breakdown per kelompok utk LIST: multi = per kelompok; 1 kelompok = satu baris. */
+export function groupProgressList(c: Campaign): GroupProgress[] {
+  if ((c.group_count ?? 1) > 1 && c.groups_progress?.length) {
+    return c.groups_progress;
+  }
+  return [{ group_no: 1, member_count: c.participants, completed_juz: c.juz_completed }];
 }
 
 export interface JuzSlot {
@@ -315,7 +331,14 @@ export function CampaignForm({
 
       {c && !isNew && (
         <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs text-emerald-800">
-          <b>{c.name}</b> — {STATUS_LABEL[c.status]} · {c.participants} peserta · {c.juz_completed} dari {30 * (c.group_count ?? c.target_khataman)} juz selesai · {c.group_count ?? 1} kelompok
+          <b>{c.name}</b> — {STATUS_LABEL[c.status]} · {c.participants} peserta ·{" "}
+          {groupProgressList(c)
+            .map((g) =>
+              (c.group_count ?? 1) > 1
+                ? `Kelompok ${g.group_no}: ${g.completed_juz} dari 30 juz selesai`
+                : `${g.completed_juz} dari 30 juz selesai`
+            )
+            .join(" · ")}
         </div>
       )}
       {locked && (
