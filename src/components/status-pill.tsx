@@ -45,11 +45,8 @@ const MAP: Record<string, [string, Tone]> = {
   APPROVED: ["Disetujui", "sky"],
   TRANSFERRED: ["Sudah ditransfer", "green"],
   REJECTED: ["Ditolak", "red"],
-  // materi
-  DRAFT: ["Draf", "gray"],
-  PUBLISHED: ["Terbit", "green"],
-  ARCHIVED: ["Diarsipkan", "amber"],
   // khatmil campaign
+  DRAFT: ["Draf", "gray"],
   SCHEDULED: ["Terjadwal", "sky"],
   CANCELLED: ["Dibatalkan", "gray"],
   // pertanyaan

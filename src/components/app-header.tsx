@@ -22,8 +22,6 @@ const segmentLabels: Record<string, string> = {
   hafalan: "Hafalan",
   tanya: "Tanya Ustadz",
   khatmil: "Khatmil",
-  materi: "Materi",
-  cms: "CMS",
   pengaturan: "Pengaturan",
   audit: "Audit Log",
 };
