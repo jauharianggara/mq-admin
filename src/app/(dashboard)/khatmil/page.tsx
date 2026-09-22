@@ -155,12 +155,20 @@ export default function KhatmilPage() {
                   <TableRow key={c.id} className="cursor-pointer" onClick={() => router.push(`/khatmil/${c.id}`)}>
                     <TableCell className="text-muted-foreground">{i + 1}</TableCell>
                     <TableCell>
-                      <div className="text-sm font-medium">{c.name}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {c.slug}
-                        {c.period_start
-                          ? ` · ${fmtDateInput(c.period_start)}${c.period_end ? ` – ${fmtDateInput(c.period_end)}` : ""}`
-                          : ""}
+                      <div className="flex items-center gap-2">
+                        {c.cover_url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={c.cover_url} alt="" className="h-9 w-16 shrink-0 rounded border object-cover" />
+                        ) : null}
+                        <div className="min-w-0">
+                          <div className="text-sm font-medium">{c.name}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {c.slug}
+                            {c.period_start
+                              ? ` · ${fmtDateInput(c.period_start)}${c.period_end ? ` – ${fmtDateInput(c.period_end)}` : ""}`
+                              : ""}
+                          </div>
+                        </div>
                       </div>
                     </TableCell>
                     <TableCell>
@@ -253,6 +261,10 @@ export default function KhatmilPage() {
               onClick={() => router.push(`/khatmil/${c.id}`)}
               className="w-full rounded-lg border bg-background p-3 text-left"
             >
+              {c.cover_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={c.cover_url} alt="" className="-m-3 mb-3 aspect-[16/6] w-[calc(100%+1.5rem)] rounded-t-lg object-cover" />
+              ) : null}
               <div className="flex items-center gap-2">
                 <span className="min-w-0 flex-1 truncate text-sm font-semibold">{c.name}</span>
                 <StatusBadge status={c.status} />

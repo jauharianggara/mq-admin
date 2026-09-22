@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { apiGet } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { UserAvatar } from "@/components/user-avatar";
 import {
   PageHeader,
   Toolbar,
@@ -31,6 +32,7 @@ import {
 interface Ustadz {
   id: number;
   full_name: string;
+  photo_url?: string | null;
   email: string | null;
   phone: string | null;
   city: string | null;
@@ -122,11 +124,16 @@ export default function UstadzPage() {
               list.items.map((u, i) => (
                 <TableRow key={u.id} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(`/ustadz/${u.id}`)}>
                   <TableCell className="text-muted-foreground">{(list.page - 1) * 20 + i + 1}</TableCell>                  <TableCell>
-                    <div className="font-medium">
-                      {u.full_name}
-                      {u.verified && <span className="ml-1 text-green-600" title="Terverifikasi">✓</span>}
+                    <div className="flex items-center gap-2">
+                      <UserAvatar photoUrl={u.photo_url} name={u.full_name} />
+                      <div>
+                        <div className="font-medium">
+                          {u.full_name}
+                          {u.verified && <span className="ml-1 text-green-600" title="Terverifikasi">✓</span>}
+                        </div>
+                        <div className="text-xs text-muted-foreground">#{u.id} · {u.city ?? "-"}</div>
+                      </div>
                     </div>
-                    <div className="text-xs text-muted-foreground">#{u.id} · {u.city ?? "-"}</div>
                   </TableCell>
                   <TableCell>
                     <div className="text-sm">{u.email ?? "-"}</div>

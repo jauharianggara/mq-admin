@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiGet, apiPatch } from "@/lib/api";
+import { UserAvatar } from "@/components/user-avatar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
@@ -39,6 +40,7 @@ interface AdminUser {
   roles: string[] | null;
   last_login_at: string | null;
   full_name?: string | null;
+  photo_url?: string | null;
   city?: string | null;
 }
 
@@ -163,8 +165,13 @@ export default function PenggunaPage() {
                   >
                     <TableCell className="text-muted-foreground">{no}</TableCell>
                     <TableCell>
-                      <div className="text-sm">{u.full_name || "—"}</div>
-                      {u.city && <div className="text-xs text-muted-foreground">{u.city}</div>}
+                      <div className="flex items-center gap-2">
+                        <UserAvatar photoUrl={u.photo_url} name={u.full_name} />
+                        <div>
+                          <div className="text-sm">{u.full_name || "—"}</div>
+                          {u.city && <div className="text-xs text-muted-foreground">{u.city}</div>}
+                        </div>
+                      </div>
                     </TableCell>
                     <TableCell>
                       <div className="text-sm">{u.email ?? "—"}</div>

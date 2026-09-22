@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiGet } from "@/lib/api";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { UserAvatar } from "@/components/user-avatar";
 import {
   PageHeader,
   Toolbar,
@@ -30,6 +31,7 @@ import {
 interface Santri {
   id: number;
   full_name: string;
+  photo_url?: string | null;
   email: string | null;
   phone: string | null;
   city: string | null;
@@ -115,8 +117,13 @@ export default function SantriPage() {
               list.items.map((s, i) => (
                 <TableRow key={s.id} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(`/santri/${s.id}`)}>
                   <TableCell className="text-muted-foreground">{(list.page - 1) * 20 + i + 1}</TableCell>                  <TableCell>
-                    <div className="font-medium">{s.full_name}</div>
-                    <div className="text-xs text-muted-foreground">#{s.id}</div>
+                    <div className="flex items-center gap-2">
+                      <UserAvatar photoUrl={s.photo_url} name={s.full_name} />
+                      <div>
+                        <div className="font-medium">{s.full_name}</div>
+                        <div className="text-xs text-muted-foreground">#{s.id}</div>
+                      </div>
+                    </div>
                   </TableCell>
                   <TableCell>
                     <div className="text-sm">{s.email ?? "-"}</div>

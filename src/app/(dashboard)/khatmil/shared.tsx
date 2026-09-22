@@ -25,6 +25,8 @@ export interface Campaign {
   slug: string;
   name: string;
   description: string | null;
+  /** Cover campaign (presigned URL, TTL 15 menit) */
+  cover_url?: string | null;
   max_participants: number | null;
   mode: string;
   status: string;
@@ -203,6 +205,8 @@ export async function patchCampaign(c: Campaign, patch: Partial<Campaign> & Reco
     period_end: patch.period_end !== undefined ? patch.period_end : base.period_end ?? null,
     require_manual_verification: patch.require_manual_verification ?? c.require_manual_verification,
     max_participants: patch.max_participants !== undefined ? patch.max_participants : c.max_participants ?? null,
+    ...(patch.cover_media_id !== undefined ? { cover_media_id: patch.cover_media_id } : {}),
+    ...(patch.remove_cover ? { remove_cover: true } : {}),
   };
   try {
     await apiPatch(`/khatmil/campaigns/${c.id}`, body);
@@ -239,6 +243,37 @@ export function CampaignForm({
     require_manual_verification: false,
   });
   const [busy, setBusy] = useState(false);
+  // cover: media_id hasil upload baru + preview (object URL lokal / presigned URL dari server)
+  const [coverMediaId, setCoverMediaId] = useState<number | null>(null);
+  const [coverPreview, setCoverPreview] = useState<string | null>(null);
+  const [coverBusy, setCoverBusy] = useState(false);
+  const [coverRemoved, setCoverRemoved] = useState(false);
+
+  async function uploadCover(file: File) {
+    if (!file.type.startsWith("image/")) {
+      toast.error("File harus gambar (JPG/PNG/WebP)");
+      return;
+    }
+    setCoverBusy(true);
+    try {
+      const up = await apiPost<{ media_id: number; upload_url: string; expires_at: string }>("/media/uploads", {
+        kind: "IMAGE",
+        mime_type: file.type,
+        byte_size: file.size,
+      });
+      const res = await fetch(up.upload_url, { method: "PUT", body: file, headers: { "Content-Type": file.type } });
+      if (!res.ok) throw new ApiError("upload_failed", "Upload gagal", res.status);
+      await apiPost(`/media/uploads/${up.media_id}/complete`);
+      setCoverMediaId(up.media_id);
+      setCoverPreview(URL.createObjectURL(file));
+      setCoverRemoved(false);
+      toast.success("Cover terunggah — jangan lupa simpan");
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : "Upload cover gagal");
+    } finally {
+      setCoverBusy(false);
+    }
+  }
 
   useEffect(() => {
     if (isNew) {
@@ -247,6 +282,9 @@ export function CampaignForm({
         group_count: "1", max_participants: "", period_start: "", period_end: "",
         require_manual_verification: false,
       });
+      setCoverMediaId(null);
+      setCoverPreview(null);
+      setCoverRemoved(false);
     } else if (c) {
       setForm({
         slug: c.slug,
@@ -260,6 +298,9 @@ export function CampaignForm({
         period_end: "",
         require_manual_verification: c.require_manual_verification,
       });
+      setCoverMediaId(null);
+      setCoverPreview(c.cover_url ?? null);
+      setCoverRemoved(false);
       import("@/lib/api").then(({ apiGet }) =>
         apiGet<CampaignDetail>(`/khatmil/campaigns/${c.id}`)
           .then((d) => setForm((f) => ({ ...f, period_start: d.period_start ?? "", period_end: d.period_end ?? "" })))
@@ -285,6 +326,7 @@ export function CampaignForm({
           ...(form.max_participants ? { max_participants: Number(form.max_participants) } : {}),
           ...(form.period_start ? { period_start: form.period_start } : {}),
           ...(form.period_end ? { period_end: form.period_end } : {}),
+          ...(coverMediaId ? { cover_media_id: coverMediaId } : {}),
         });
         toast.success("Campaign dibuat");
         onDone();
@@ -303,6 +345,8 @@ export function CampaignForm({
             max_participants: form.max_participants ? Number(form.max_participants) : null,
             period_start: form.period_start || null,
             period_end: form.period_end || null,
+            ...(coverMediaId ? { cover_media_id: coverMediaId } : {}),
+            ...(coverRemoved ? { remove_cover: true } : {}),
           },
           "Perubahan tersimpan"
         );
@@ -380,6 +424,45 @@ export function CampaignForm({
               value={form.description}
               disabled={locked}
               onChange={(e) => setForm({ ...form, description: e.target.value })}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label>Cover</Label>
+            {coverPreview ? (
+              <div className="relative overflow-hidden rounded-md border">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={coverPreview} alt="Cover campaign" className="aspect-[16/6] w-full object-cover" />
+                <div className="absolute right-2 top-2 flex gap-1">
+                  <Button
+                    type="button" variant="secondary" size="sm" disabled={locked || coverBusy}
+                    onClick={() => document.getElementById("cover-input")?.click()}
+                  >Ganti</Button>
+                  <Button
+                    type="button" variant="destructive" size="sm" disabled={locked || coverBusy}
+                    onClick={() => {
+                      setCoverPreview(null);
+                      setCoverMediaId(null);
+                      setCoverRemoved(true);
+                    }}
+                  >Hapus</Button>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button" disabled={locked || coverBusy}
+                onClick={() => document.getElementById("cover-input")?.click()}
+                className="flex aspect-[16/6] w-full items-center justify-center rounded-md border border-dashed text-sm text-muted-foreground hover:bg-muted/50 disabled:opacity-50"
+              >
+                {coverBusy ? "Mengunggah…" : "Klik untuk pilih gambar cover"}
+              </button>
+            )}
+            <input
+              id="cover-input" type="file" accept="image/*" className="hidden" disabled={locked || coverBusy}
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) uploadCover(f);
+                e.currentTarget.value = "";
+              }}
             />
           </div>
         </section>
