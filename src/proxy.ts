@@ -50,6 +50,12 @@ export default async function proxy(req: NextRequest) {
   // zstd/br yang TIDAK otomatis didekompres runtime fetch, sehingga body JSON sampai
   // ke klien sebagai byte terkompresi (json parse gagal diam-diam). Paksa identity.
   headers.delete("accept-encoding");
+  // Hop-by-hop headers DILARANG diteruskan ke fetch — undici menolak (prod 1Okt:
+  // nginx vhost kirim Connection:"upgrade" utk semua request → semua GET /api/v1
+  // 500 "UND_ERR_INVALID_ARG invalid connection header". Strip semua hop-by-hop.
+  for (const h of ["connection", "keep-alive", "transfer-encoding", "upgrade", "te", "trailer", "proxy-authenticate", "proxy-authorization", "proxy-connection"]) {
+    headers.delete(h);
+  }
   const at = req.cookies.get(COOKIE_AT)?.value;
   const rt = req.cookies.get(COOKIE_RT)?.value;
   if (at) headers.set("authorization", `Bearer ${at}`);
