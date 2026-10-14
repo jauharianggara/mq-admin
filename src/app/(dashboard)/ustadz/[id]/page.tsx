@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, RefreshCw } from "lucide-react";
-import { apiGet, apiGetPage, apiPatch, ApiError } from "@/lib/api";
+import { apiGet, apiGetPage, apiPatch, apiPost, ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -151,6 +151,43 @@ export default function UstadzDetailPage({ params }: { params: Promise<{ id: str
       await apiPatch(`/admin/users/${u.id}`, { status: newStatus });
       toast.success(`Status → ${newStatus}`);
       load();
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : "Gagal");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function setVerified(verified: boolean) {
+    if (!u) return;
+    if (!confirm(verified
+      ? `Verifikasi ${u.full_name} sebagai ustadz? Akun mendapat role USTADZ dan akan muncul di pencarian santri.`
+      : `Batalkan verifikasi ${u.full_name}? Ustadz tidak lagi muncul di pencarian santri.`)) return;
+    setBusy(true);
+    try {
+      await apiPost(`/admin/ustadz/${u.id}/verify`, { verified });
+      toast.success(verified ? "Ustadz terverifikasi" : "Verifikasi dibatalkan");
+      load();
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : "Gagal");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function resetPassword() {
+    if (!u) return;
+    const pw = prompt(`Kata sandi baru untuk ${u.full_name} (min. 8 karakter):`);
+    if (pw === null) return;
+    if (pw.length < 8) {
+      toast.error("Kata sandi minimal 8 karakter");
+      return;
+    }
+    if (!confirm(`Reset kata sandi ${u.full_name}? Semua sesi perangkatnya akan dipaksa keluar.`)) return;
+    setBusy(true);
+    try {
+      await apiPatch(`/admin/users/${u.id}`, { password: pw });
+      toast.success("Kata sandi direset — sampaikan kata sandi baru ke pengguna");
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : "Gagal");
     } finally {
@@ -370,6 +407,18 @@ export default function UstadzDetailPage({ params }: { params: Promise<{ id: str
                   Aktifkan akun
                 </Button>
               )}
+              {u.verified_at ? (
+                <Button variant="outline" disabled={busy} onClick={() => setVerified(false)}>
+                  Batalkan Verifikasi
+                </Button>
+              ) : (
+                <Button disabled={busy} onClick={() => setVerified(true)}>
+                  Verifikasi Ustadz
+                </Button>
+              )}
+              <Button variant="outline" disabled={busy} onClick={resetPassword}>
+                Reset Kata Sandi
+              </Button>
             </CardContent>
           </Card>
         </>

@@ -147,6 +147,26 @@ export default function SantriDetailPage({ params }: { params: Promise<{ id: str
     }
   }
 
+  async function resetPassword() {
+    if (!s) return;
+    const pw = prompt(`Kata sandi baru untuk ${s.full_name} (min. 8 karakter):`);
+    if (pw === null) return;
+    if (pw.length < 8) {
+      toast.error("Kata sandi minimal 8 karakter");
+      return;
+    }
+    if (!confirm(`Reset kata sandi ${s.full_name}? Semua sesi perangkatnya akan dipaksa keluar.`)) return;
+    setBusy(true);
+    try {
+      await apiPatch(`/admin/users/${s.id}`, { password: pw });
+      toast.success("Kata sandi direset — sampaikan kata sandi baru ke pengguna");
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : "Gagal");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="mx-auto max-w-5xl space-y-4">
       <div className="flex items-center justify-between">
@@ -338,6 +358,9 @@ export default function SantriDetailPage({ params }: { params: Promise<{ id: str
                   Aktifkan akun
                 </Button>
               )}
+              <Button variant="outline" disabled={busy} onClick={resetPassword}>
+                Reset Kata Sandi
+              </Button>
             </CardContent>
           </Card>
         </>
