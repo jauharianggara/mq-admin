@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, EyeOff, RefreshCw } from "lucide-react";
+import { ArrowLeft, EyeOff, MapPin, RefreshCw } from "lucide-react";
 import { apiGet, apiPost, ApiError } from "@/lib/api";
+import VisitMap from "@/components/visit-map";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -70,6 +71,7 @@ const statusColor: Record<string, string> = {
   REQUESTED: "bg-sky-100 text-sky-700",
   WAITING_CONFIRM: "bg-amber-100 text-amber-700",
   CONFIRMED: "bg-green-100 text-green-700",
+  IN_PROGRESS: "bg-teal-100 text-teal-800",
   COMPLETED: "bg-emerald-100 text-emerald-700",
   REVIEWED: "bg-purple-100 text-purple-700",
   DECLINED: "bg-red-100 text-red-700",
@@ -213,16 +215,6 @@ export default function VisitDetailPage({ params }: { params: Promise<{ id: stri
                   <Info label="Durasi" value={`${v.duration_hours} jam`} />
                   <Info label="Infaq" value={`${rp(v.price_per_hour)} / jam`} />
                   <Info label="Total" value={rp(v.price_total)} />
-                  <Info
-                    label="Titik lokasi santri"
-                    value={
-                      v.anonymized
-                        ? "dianonymize (akun dihapus)"
-                        : v.lat != null
-                          ? `${v.lat.toFixed(5)}, ${v.lng?.toFixed(5)}`
-                          : "-"
-                    }
-                  />
                   <Info label="Patokan rumah" value={v.address_label} />
                   <Info label="Dibuat" value={fmtShort(v.created_at)} />
                   {v.paid_at && <Info label="Dibayar" value={fmtShort(v.paid_at)} />}
@@ -282,6 +274,43 @@ export default function VisitDetailPage({ params }: { params: Promise<{ id: stri
                     </>
                   ) : (
                     <p className="text-muted-foreground">Belum ada pembayaran.</p>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Lokasi Kunjungan</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {!v.anonymized && v.lat != null && v.lng != null ? (
+                    <>
+                      <VisitMap lat={v.lat} lng={v.lng} />
+                      <div className="space-y-2 text-sm">
+                        <Info label="Patokan rumah" value={v.address_label || "-"} />
+                        <Info label="Koordinat" value={`${v.lat.toFixed(5)}, ${v.lng.toFixed(5)}`} />
+                      </div>
+                      <Button
+                        variant="outline"
+                        className="w-full"
+                        render={
+                          <a
+                            href={`https://www.google.com/maps?q=${v.lat},${v.lng}`}
+                            target="_blank"
+                            rel="noreferrer"
+                          />
+                        }
+                      >
+                        <MapPin className="h-4 w-4" />
+                        Buka di Google Maps
+                      </Button>
+                    </>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      {v.anonymized
+                        ? "Lokasi telah dianonymize (akun santri dihapus) — koordinat dibersihkan."
+                        : "Belum ada koordinat untuk kunjungan ini."}
+                    </p>
                   )}
                 </CardContent>
               </Card>
