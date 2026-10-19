@@ -24,6 +24,14 @@ const segmentLabels: Record<string, string> = {
   khatmil: "Khatmil",
   pengaturan: "Pengaturan",
   audit: "Audit Log",
+  penerima: "Penerima Infaq",
+  "rekap-infaq": "Rekap Infaq",
+  "infaq-saya": "Infaq Saya",
+  visits: "Kunjungan",
+  payouts: "Penarikan",
+  payments: "Pembayaran",
+  deposit: "Saldo",
+  reviews: "Review",
 };
 
 export function AppHeader() {

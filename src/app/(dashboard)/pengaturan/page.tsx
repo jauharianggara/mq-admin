@@ -83,7 +83,10 @@ export default function PengaturanPage() {
                 </CardContent>
               </Card>
             ))
-          : Object.entries(settings).map(([key, meta]) => (
+          : Object.entries(settings)
+              // punya editor khusus /pengaturan/pembagian-infaq — jangan tampil sbg kartu JSON
+              .filter(([key]) => key !== "visit_income_split")
+              .map(([key, meta]) => (
               <Card key={key}>
                 <CardHeader className="pb-2">
                   <CardTitle className="font-mono text-sm">{key}</CardTitle>
