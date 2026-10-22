@@ -40,15 +40,27 @@ interface LaporanRow {
   pending_tarik: number;
 }
 
+interface PengelolaRow {
+  visit_id: number;
+  paid_at: string | null;
+  total_bayar: number;
+  pengelola: number;
+}
+
 export default function RekapInfaqPage() {
   const [bulan, setBulan] = useState<string>("");
   const [rows, setRows] = useState<LaporanRow[] | null>(null);
+  const [pengelola, setPengelola] = useState<{ total: number; rows: PengelolaRow[] } | null>(null);
 
   const load = useCallback(async () => {
     try {
       const qs = bulan ? `?bulan=${encodeURIComponent(bulan)}` : "";
-      const res = await apiGet<{ items: LaporanRow[] }>(`/admin/infaq/laporan${qs}`);
+      const [res, pg] = await Promise.all([
+        apiGet<{ items: LaporanRow[] }>(`/admin/infaq/laporan${qs}`),
+        apiGet<{ total: number; rows: PengelolaRow[] }>(`/admin/infaq/pengelola${qs}`),
+      ]);
       setRows(res.items);
+      setPengelola(pg);
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : "Gagal memuat laporan");
     }
@@ -71,6 +83,53 @@ export default function RekapInfaqPage() {
           </p>
         </div>
       </div>
+
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle>Pengelola Aplikasi</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Fee infaq dari setiap kunjungan yang tidak masuk wallet penerima (porsi PLATFORM).
+          </p>
+        </CardHeader>
+        <CardContent>
+          {pengelola === null ? (
+            <Skeleton className="h-16 w-full" />
+          ) : pengelola.rows.length === 0 ? (
+            <p className="py-4 text-center text-sm text-muted-foreground">
+              Belum ada pemasukan fee infaq{bulan ? ` di bulan ${bulan}` : ""}.
+            </p>
+          ) : (
+            <>
+              <p className="mb-3 text-sm">
+                Total porsi pengelola{bulan ? ` (${bulan})` : ""}:{" "}
+                <span className="text-base font-semibold tabular-nums text-green-700">{rp(pengelola.total)}</span>
+              </p>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Kunjungan</TableHead>
+                      <TableHead>Tanggal bayar</TableHead>
+                      <TableHead className="text-right">Total bayar</TableHead>
+                      <TableHead className="text-right">Porsi pengelola</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {pengelola.rows.map((r) => (
+                      <TableRow key={r.visit_id}>
+                        <TableCell>#{r.visit_id}</TableCell>
+                        <TableCell className="whitespace-nowrap">{r.paid_at ?? "—"}</TableCell>
+                        <TableCell className="text-right tabular-nums">{rp(r.total_bayar)}</TableCell>
+                        <TableCell className="text-right font-semibold tabular-nums text-green-700">{rp(r.pengelola)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
