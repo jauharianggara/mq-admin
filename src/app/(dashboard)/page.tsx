@@ -5,8 +5,6 @@ import {
   Users,
   GraduationCap,
   BookOpenText,
-  MessageCircleQuestion,
-  Clock,
 } from "lucide-react";
 import { apiGet } from "@/lib/api";
 import {
@@ -19,9 +17,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 interface DashboardData {
   users: { active: number; santri_active: number; ustadz_verified: number };
-  memorization: { total: number; pending: number; passed: number; avg_review_minutes: number | null };
   khatmil: { campaigns_active: number; juz_completed: number };
-  questions: { total: number; answered: number; published: number; avg_answer_minutes: number | null };
   activity_series_7d: { date: string; events: number }[];
 }
 
@@ -48,22 +44,10 @@ export default function DashboardPage() {
           icon: Users,
         },
         {
-          title: "Setoran Hafalan",
-          value: data.memorization.total,
-          sub: `${data.memorization.passed} lulus · ${data.memorization.pending} menunggu`,
-          icon: GraduationCap,
-        },
-        {
           title: "Khatmil",
           value: data.khatmil.juz_completed,
           sub: `${data.khatmil.campaigns_active} campaign aktif · juz selesai`,
           icon: BookOpenText,
-        },
-        {
-          title: "Pertanyaan",
-          value: data.questions.total,
-          sub: `${data.questions.answered} dijawab · ${data.questions.published} publik`,
-          icon: MessageCircleQuestion,
         },
       ]
     : [];
@@ -139,34 +123,6 @@ export default function DashboardPage() {
           <CardContent className="space-y-3">
             {data ? (
               <>
-                <div className="flex items-center gap-3">
-                  <Clock className="size-4 text-muted-foreground" />
-                  <div>
-                    <div className="text-sm font-medium">
-                      Rata-rata review setoran:{" "}
-                      {data.memorization.avg_review_minutes !== null
-                        ? `${Math.round(data.memorization.avg_review_minutes)} menit`
-                        : "—"}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      dari submitted sampai reviewed
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <Clock className="size-4 text-muted-foreground" />
-                  <div>
-                    <div className="text-sm font-medium">
-                      Rata-rata jawab pertanyaan:{" "}
-                      {data.questions.avg_answer_minutes !== null
-                        ? `${Math.round(data.questions.avg_answer_minutes)} menit`
-                        : "—"}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      dari ditanya sampai dijawab
-                    </div>
-                  </div>
-                </div>
                 <div className="flex items-center gap-3">
                   <GraduationCap className="size-4 text-muted-foreground" />
                   <div>

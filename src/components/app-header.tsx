@@ -19,8 +19,6 @@ import { logout, me, type MqUser } from "@/lib/auth";
 
 const segmentLabels: Record<string, string> = {
   pengguna: "Pengguna",
-  hafalan: "Hafalan",
-  tanya: "Tanya Ustadz",
   khatmil: "Khatmil",
   pengaturan: "Pengaturan",
   audit: "Audit Log",

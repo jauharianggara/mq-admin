@@ -8,7 +8,6 @@ import {
   Users,
   GraduationCap,
   BookUser,
-  MessageCircleQuestion,
   BookOpenText,
   Settings,
   ScrollText,
@@ -43,10 +42,6 @@ const mainNav = [
   { label: "Ustadz", icon: BookUser, href: "/ustadz" },
   { label: "Pengguna", icon: Users, href: "/pengguna" },
   { label: "Notifikasi", icon: BellRing, href: "/notifikasi" },
-  // HIDDEN (per user 15Sep): Hafalan & Tanya Ustadz — halaman tetap ada, cukup hapus
-  // komentar baris di bawah utk menampilkan kembali:
-  // { label: "Hafalan", icon: GraduationCap, href: "/hafalan" },
-  // { label: "Tanya Ustadz", icon: MessageCircleQuestion, href: "/tanya" },
   { label: "Khatmil", icon: BookOpenText, href: "/khatmil" },
 ];
 

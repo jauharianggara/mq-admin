@@ -49,16 +49,6 @@ const MAP: Record<string, [string, Tone]> = {
   DRAFT: ["Draf", "gray"],
   SCHEDULED: ["Terjadwal", "sky"],
   CANCELLED: ["Dibatalkan", "gray"],
-  // pertanyaan
-  QUEUED: ["Menunggu ustadz", "amber"],
-  ASSIGNED: ["Ditugaskan", "sky"],
-  ANSWERED: ["Dijawab", "green"],
-  PUBLISH_REQUESTED: ["Minta tayang", "purple"],
-  CLOSED: ["Ditutup", "gray"],
-  // hafalan
-  IN_REVIEW: ["Sedang direview", "sky"],
-  PASSED: ["Lulus", "green"],
-  REVISION: ["Perlu revisi", "amber"],
   // penyesuaian saldo
   ACCEPTED: ["Disetujui", "green"],
 };
