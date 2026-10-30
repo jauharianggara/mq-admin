@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, EyeOff, MapPin, RefreshCw } from "lucide-react";
 import { apiGet, apiPost, ApiError } from "@/lib/api";
@@ -110,24 +110,51 @@ export default function VisitDetailPage({ params }: { params: Promise<{ id: stri
     params.then((p) => setId(p.id));
   }, [params]);
 
-  const load = useCallback(async () => {
-    if (!id) return;
-    try {
-      const visit = await apiGet<Visit>(`/admin/visits/${id}`);
-      setV(visit);
-      const msgs = await apiGet<ChatMsg[]>(`/admin/visits/${id}/messages?limit=200`).catch(() => []);
-      setChat(msgs);
-      setError(null);
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Gagal memuat kunjungan");
-    } finally {
-      setLoading(false);
-    }
-  }, [id]);
+  // fetch murni (tanpa setState) — effect dan handler yang menulis state
+  function muatData(vid: string) {
+    return Promise.all([
+      apiGet<Visit>(`/admin/visits/${vid}`),
+      apiGet<ChatMsg[]>(`/admin/visits/${vid}/messages?limit=200`).catch(() => [] as ChatMsg[]),
+    ]);
+  }
 
   useEffect(() => {
-    if (id) load();
-  }, [id, load]);
+    if (!id) return;
+    let ignore = false;
+    muatData(id)
+      .then(([visit, msgs]) => {
+        if (!ignore) {
+          setV(visit);
+          setChat(msgs);
+          setError(null);
+        }
+      })
+      .catch((e: unknown) => {
+        if (!ignore) setError(e instanceof ApiError ? e.message : "Gagal memuat kunjungan");
+      })
+      .finally(() => {
+        if (!ignore) setLoading(false);
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [id]);
+
+  // reload dari handler aksi admin
+  function load() {
+    if (!id) return;
+    setLoading(true);
+    muatData(id)
+      .then(([visit, msgs]) => {
+        setV(visit);
+        setChat(msgs);
+        setError(null);
+      })
+      .catch((e: unknown) => {
+        setError(e instanceof ApiError ? e.message : "Gagal memuat kunjungan");
+      })
+      .finally(() => setLoading(false));
+  }
 
   async function doForceComplete() {
     if (!v) return;
