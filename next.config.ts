@@ -6,6 +6,8 @@ const nextConfig: NextConfig = {
   outputFileTracingRoot: path.resolve(__dirname),
   // deploy server: runtime minimal tanpa node_modules penuh (plan synergy .116)
   output: "standalone",
+  // sembunyikan tombol/indikator dev (logo N) — tangkapan/PDF review hanya memperlihatkan UI produk
+  devIndicators: false,
 };
 
 export default nextConfig;
