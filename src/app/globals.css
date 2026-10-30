@@ -147,3 +147,57 @@
     @apply font-sans;
   }
 }
+
+/* Cetak/PDF — HANYA untuk halaman detail Khatmil (elemen dengan [data-khatmil-print]),
+   bukan seluruh admin: sidebar/header disembunyikan, konten lebar penuh agar tabel
+   tidak melebar; halaman modul lain tidak berubah. */
+@media print {
+  body:has([data-khatmil-print]) [data-slot="sidebar-wrapper"],
+  body:has([data-khatmil-print]) [data-slot="sidebar-inset"] {
+    display: block !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+  body:has([data-khatmil-print]) [data-slot="sidebar"],
+  body:has([data-khatmil-print]) header {
+    display: none !important;
+  }
+  body:has([data-khatmil-print]) main {
+    overflow: visible !important;
+    background: white !important;
+  }
+  /* Tabel peserta muat A4 portrait: font/padding ringkas, bar MiniBar disembunyikan
+     (angka % tetap tercetak) — heading dan semua nilai tidak terpotong tepi. */
+  body:has([data-khatmil-print]) main table {
+    font-size: 11px;
+    line-height: 1.35;
+    table-layout: auto;
+  }
+  body:has([data-khatmil-print]) main table th,
+  body:has([data-khatmil-print]) main table td {
+    padding: 4px 6px;
+  }
+  body:has([data-khatmil-print]) main table .h-1\.5 {
+    display: none !important;
+  }
+}
+
+/* Hover baris tabel modul kunjungan: garis aksen kiri. Dimatikan bila pengguna mengurangi gerakan. */
+@media (prefers-reduced-motion: no-preference) {
+  .visits-row {
+    position: relative;
+  }
+  .visits-row::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: transparent;
+    transition: background-color 0.18s ease;
+  }
+  .visits-row:hover::before {
+    background: var(--primary);
+  }
+}

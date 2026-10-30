@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { ArrowLeft, Plus } from "lucide-react";
+import { useEffect, useState } from "react";
+import { ArrowLeft, Plus, RefreshCw, ShieldCheck } from "lucide-react";
 import { apiGet, apiGetPage, apiPost, ApiError } from "@/lib/api";
+import { AnimatedRupiah } from "@/components/animated-rupiah";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -82,6 +83,7 @@ const ADJ_STATUS = ["PENDING", "ACCEPTED", "REJECTED"];
 export default function DepositPage() {
   const [tab, setTab] = useState<"SANTRI" | "USTADZ" | "ADJ">("SANTRI");
   const [q, setQ] = useState("");
+  const [nomFilter, setNomFilter] = useState("semua");
   const [rows, setRows] = useState<BalanceRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<BalanceRow | null>(null);
@@ -91,6 +93,11 @@ export default function DepositPage() {
   const [adjAmount, setAdjAmount] = useState("");
   const [adjReason, setAdjReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [kpiNonce, setKpiNonce] = useState(0);
+  const [kpi, setKpi] = useState<{
+    santri: { sum: number; n: number; zero: number };
+    ustadz: { sum: number; n: number; zero: number };
+  } | null>(null);
 
   const [adjFilter, setAdjFilter] = useState("ALL");
   const adjList = useAdminList<Adjustment>("/admin/wallet-adjustments", {
@@ -98,31 +105,63 @@ export default function DepositPage() {
     limit: 50,
   });
 
-  const load = useCallback(async () => {
-    if (tab === "ADJ") {
-      adjList.reload();
-      return;
-    }
+  // KPI dari seluruh rekening kedua role — bukan hanya tab aktif.
+  useEffect(() => {
+    let ignore = false;
+    (async () => {
+      const ambil = async (role: string) => {
+        try {
+          const d = await apiGet<{ items: BalanceRow[] }>(`/admin/wallet?role=${role}`);
+          return d.items ?? [];
+        } catch {
+          return [] as BalanceRow[];
+        }
+      };
+      const [santri, ustadz] = await Promise.all([ambil("SANTRI"), ambil("USTADZ")]);
+      if (ignore) return;
+      const sum = (arr: BalanceRow[]) => arr.reduce((a, r) => a + (r.balance ?? 0), 0);
+      setKpi({
+        santri: { sum: sum(santri), n: santri.length, zero: santri.filter((r) => (r.balance ?? 0) === 0).length },
+        ustadz: { sum: sum(ustadz), n: ustadz.length, zero: ustadz.filter((r) => (r.balance ?? 0) === 0).length },
+      });
+    })();
+    return () => {
+      ignore = true;
+    };
+  }, [kpiNonce]);
+
+  // reload dari handler (tombol Muat Ulang / setelah penyesuaian)
+  function muatRows() {
     setLoading(true);
-    try {
-      const qs = new URLSearchParams({ role: tab });
-      if (q.trim()) qs.set("q", q.trim());
-      const d = await apiGet<{ items: BalanceRow[] }>(`/admin/wallet?${qs.toString()}`);
-      setRows(d.items ?? []);
-    } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : "Gagal memuat data saldo");
-    } finally {
-      setLoading(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, q]);
+    const qs = new URLSearchParams({ role: tab });
+    if (q.trim()) qs.set("q", q.trim());
+    apiGet<{ items: BalanceRow[] }>(`/admin/wallet?${qs.toString()}`)
+      .then((d) => setRows(d.items ?? []))
+      .catch((e: unknown) => toast.error(e instanceof ApiError ? e.message : "Gagal memuat data saldo"))
+      .finally(() => setLoading(false));
+  }
 
   useEffect(() => {
-    if (tab !== "ADJ") {
-      setSelected(null);
-      load();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (tab === "ADJ") return;
+    let ignore = false;
+    const qs = new URLSearchParams({ role: tab });
+    if (q.trim()) qs.set("q", q.trim());
+    apiGet<{ items: BalanceRow[] }>(`/admin/wallet?${qs.toString()}`)
+      .then((d) => {
+        if (!ignore) {
+          setRows(d.items ?? []);
+          setSelected(null); // reset detail — jalur async, bukan sinkron di effect
+        }
+      })
+      .catch((e: unknown) => {
+        if (!ignore) toast.error(e instanceof ApiError ? e.message : "Gagal memuat data saldo");
+      })
+      .finally(() => {
+        if (!ignore) setLoading(false);
+      });
+    return () => {
+      ignore = true;
+    };
   }, [tab, q]);
 
   async function openUser(row: BalanceRow) {
@@ -172,16 +211,90 @@ export default function DepositPage() {
         title="Saldo & Mutasi"
         subtitle="Deposit santri & penghasilan ustadz. Saldo hanya berubah melalui mutasi — koreksi membutuhkan ACC pihak terkait di aplikasi."
         actions={
-          <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
-            <TabsList>
-              <TabsTrigger value="SANTRI">Saldo Santri</TabsTrigger>
-              <TabsTrigger value="USTADZ">Saldo Ustadz</TabsTrigger>
-              <TabsTrigger value="ADJ">Penyesuaian</TabsTrigger>
-            </TabsList>
-          </Tabs>
+          <div className="flex items-center gap-2.5">
+            <Tabs value={tab} onValueChange={(v) => { setTab(v as typeof tab); setNomFilter("semua"); }}>
+              <TabsList>
+                <TabsTrigger value="SANTRI">Saldo Santri</TabsTrigger>
+                <TabsTrigger value="USTADZ">Saldo Ustadz</TabsTrigger>
+                <TabsTrigger value="ADJ">Penyesuaian</TabsTrigger>
+              </TabsList>
+            </Tabs>
+            <Button variant="outline" size="sm" onClick={() => setTab("ADJ")}>
+              Riwayat Penyesuaian
+            </Button>
+          </div>
         }
       />
 
+      {/* KPI — dihitung dari seluruh rekening kedua role */}
+      {tab !== "ADJ" && (
+        <section className="grid grid-cols-1 gap-4 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2 motion-safe:duration-500 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="relative flex flex-col justify-between overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-800 via-emerald-800 to-emerald-950 p-5 text-white shadow-lg shadow-emerald-900/15 transition-transform motion-safe:hover:-translate-y-0.5">
+            <div className="mb-2 flex items-center justify-between text-xs font-medium text-emerald-200">
+              <span>Total Saldo Tersimpan</span>
+              <span className="rounded-full border border-emerald-400/30 bg-emerald-500/25 px-2 py-0.5 text-[11px] font-semibold text-emerald-300">
+                {(kpi?.santri.n ?? 0) + (kpi?.ustadz.n ?? 0)} Rekening
+              </span>
+            </div>
+            <div className="my-1 font-mono text-2xl font-bold tracking-tight lg:text-[26px]">
+              <AnimatedRupiah value={(kpi?.santri.sum ?? 0) + (kpi?.ustadz.sum ?? 0)} />
+            </div>
+            <div className="mt-3 flex items-center justify-between border-t border-emerald-700/50 pt-3 text-[11px] text-emerald-200/90">
+              <span>Akumulasi saldo santri &amp; ustadz</span>
+              <span className="flex items-center gap-1 font-medium text-emerald-300">
+                <ShieldCheck className="size-3" /> Terproteksi
+              </span>
+            </div>
+          </div>
+
+          <div className="flex flex-col justify-between rounded-2xl border bg-card p-5 shadow-2xs transition-transform motion-safe:hover:-translate-y-0.5">
+            <div className="mb-2 flex items-center justify-between text-xs font-medium text-muted-foreground">
+              <span>Saldo Deposit Santri</span>
+              <span className="rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700 dark:border-blue-800 dark:bg-blue-950/40">
+                {kpi?.santri.n ?? 0} Akun
+              </span>
+            </div>
+            <div className="my-1 font-mono text-2xl font-bold tracking-tight">
+              <AnimatedRupiah value={kpi?.santri.sum ?? 0} />
+            </div>
+            <div className="mt-3 flex items-center justify-between border-t pt-3 text-[11px] text-muted-foreground">
+              <span>Untuk bayar SPP &amp; pesanan</span>
+              <span className="font-medium">
+                Rata-rata: {kpi && kpi.santri.n > 0 ? rp(Math.round(kpi.santri.sum / kpi.santri.n)) : "—"}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex flex-col justify-between rounded-2xl border bg-card p-5 shadow-2xs transition-transform motion-safe:hover:-translate-y-0.5">
+            <div className="mb-2 flex items-center justify-between text-xs font-medium text-muted-foreground">
+              <span>Dompet Aktif Ustadz</span>
+              <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40">
+                {kpi?.ustadz.n ?? 0} Akun
+              </span>
+            </div>
+            <div className="my-1 font-mono text-2xl font-bold tracking-tight">
+              <AnimatedRupiah value={kpi?.ustadz.sum ?? 0} />
+            </div>
+            <div className="mt-3 flex items-center justify-between border-t pt-3 text-[11px] text-muted-foreground">
+              <span>Siap ditarik ustadz</span>
+            </div>
+          </div>
+
+          <div className="flex flex-col justify-between rounded-2xl border border-rose-200/80 bg-rose-50/30 p-5 shadow-2xs transition-transform motion-safe:hover:-translate-y-0.5 dark:border-rose-800 dark:bg-rose-950/10">
+            <div className="mb-2 flex items-center justify-between text-xs font-medium text-rose-700 dark:text-rose-300">
+              <span>Rekening Saldo Rp 0</span>
+              <span className="rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[11px] font-semibold dark:border-rose-800 dark:bg-rose-950/40">
+                Perlu Top-Up
+              </span>
+            </div>
+            <div className="my-1 text-2xl font-bold tracking-tight">{kpi ? (kpi.santri.zero ?? 0) + (kpi.ustadz.zero ?? 0) : "—"}</div>
+            <div className="mt-3 flex items-center justify-between border-t pt-3 text-[11px] text-muted-foreground">
+              <span>Rekening santri bersaldo kosong</span>
+              <span className="font-medium">Tandai rekening kosong</span>
+            </div>
+          </div>
+        </section>
+      )}
       {tab === "ADJ" ? (
         <>
           <Toolbar>
@@ -310,7 +423,50 @@ export default function DepositPage() {
               onChange={setQ}
               placeholder={`Cari nama ${tab === "SANTRI" ? "santri" : "ustadz"}…`}
             />
-            <RefreshButton onClick={load} />
+            <Select value={nomFilter} onValueChange={(v) => setNomFilter(v ?? "semua")}>
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="Semua nominal" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="semua">Semua nominal</SelectItem>
+                <SelectItem value="tinggi">&gt; Rp 1.000.000</SelectItem>
+                <SelectItem value="sedang">Rp 100.000 – 1.000.000</SelectItem>
+                <SelectItem value="nol">Saldo Rp 0</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button
+              variant="outline"
+              onClick={() => {
+                muatRows();
+                setKpiNonce((n) => n + 1);
+              }}
+            >
+              <RefreshCw className={`mr-1 h-4 w-4 ${loading ? "motion-safe:animate-spin" : ""}`} /> Muat Ulang
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                const tampil = rows.filter((r) => {
+                  if (nomFilter === "tinggi") return r.balance > 1_000_000;
+                  if (nomFilter === "sedang") return r.balance >= 100_000 && r.balance <= 1_000_000;
+                  if (nomFilter === "nol") return r.balance === 0;
+                  return true;
+                });
+                const head = ["user_id", "nama", "saldo"];
+                const lines = tampil
+                  .map((r) => [r.user_id, `"${r.full_name.replace(/"/g, '""')}"`, r.balance].join(","));
+                const csv = "\uFEFF" + [head.join(","), ...lines].join("\r\n");
+                const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `rekap-saldo-${tab.toLowerCase()}-${new Date().toISOString().slice(0, 10)}.csv`;
+                a.click();
+                URL.revokeObjectURL(url);
+                toast.success(`${tampil.length} rekening diunduh`);
+              }}
+            >
+              Unduh Rekap Saldo
+            </Button>
           </Toolbar>
           <TableShell>
             <Table>
@@ -318,29 +474,59 @@ export default function DepositPage() {
                 <TableRow>
                   <Head label="No." className="w-10" />
                   <Head label="Pengguna" />
+                  <Head label="Kategori" />
                   <Head label="Saldo" className="text-right" />
                   <Head label="" className="text-right" />
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
-                  <TableSkeleton rows={5} cols={3} />
+                  <TableSkeleton rows={5} cols={5} />
                 ) : rows.length === 0 ? (
-                  <EmptyRow colSpan={3} message="Tidak ditemukan." />
+                  <EmptyRow colSpan={5} message="Tidak ditemukan." />
                 ) : (
-                  rows.map((r, i) => (
-                    <TableRow key={r.user_id} className="hover:bg-muted/50">
-                      <TableCell className="text-muted-foreground">{i + 1}</TableCell>                      <TableCell className="font-medium">{r.full_name}</TableCell>
-                      <TableCell className={`text-right font-semibold ${r.balance > 0 ? "text-green-700" : "text-muted-foreground"}`}>
-                        {rp(r.balance)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button size="sm" variant="outline" onClick={() => openUser(r)}>
-                          Lihat Detail
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))
+                  rows
+                    .filter((r) => {
+                      if (nomFilter === "tinggi") return r.balance > 1_000_000;
+                      if (nomFilter === "sedang") return r.balance >= 100_000 && r.balance <= 1_000_000;
+                      if (nomFilter === "nol") return r.balance === 0;
+                      return true;
+                    })
+                    .map((r, i) => (
+                      <TableRow key={r.user_id} className={r.balance === 0 ? "bg-rose-50/40" : "hover:bg-muted/50"}>
+                        <TableCell className="text-muted-foreground">{i + 1}</TableCell>
+                        <TableCell className="font-medium">{r.full_name}</TableCell>
+                        <TableCell>
+                          <span className="rounded border border-primary/20 bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
+                            {tab === "SANTRI" ? "Santri" : "Ustadz"}
+                          </span>
+                        </TableCell>
+                        <TableCell className={`text-right font-semibold ${r.balance > 0 ? "text-green-700" : "text-rose-600"}`}>
+                          {rp(r.balance)}
+                          {r.balance === 0 && (
+                            <div className="text-[10px] font-medium text-rose-500">Saldo kosong — perlu top-up</div>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-1">
+                            <Button size="sm" variant="outline" onClick={() => openUser(r)}>
+                              Lihat Detail
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/40"
+                              onClick={() => {
+                                openUser(r);
+                                setAdjOpen(true);
+                              }}
+                            >
+                              + Koreksi
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
                 )}
               </TableBody>
             </Table>
