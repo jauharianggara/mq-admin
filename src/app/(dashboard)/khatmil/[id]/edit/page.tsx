@@ -20,7 +20,7 @@ export default function KhatmilEditPage() {
       .finally(() => setLoading(false));
   }, [id, router]);
 
-  if (loading) {
+  if (loading || !campaign) {
     return (
       <div className="mx-auto max-w-2xl space-y-3 py-4">
         <Skeleton className="h-8 w-64" />
@@ -29,5 +29,5 @@ export default function KhatmilEditPage() {
     );
   }
 
-  return <CampaignForm editing={campaign} onDone={() => router.push(`/khatmil/${id}`)} />;
+  return <CampaignForm key={campaign.id} editing={campaign} onDone={() => router.push(`/khatmil/${id}`)} />;
 }

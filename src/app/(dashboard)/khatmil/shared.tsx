@@ -1,10 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { apiPatch, apiPost, ApiError } from "@/lib/api";
+import { apiGet, apiPatch, apiPost, ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -16,6 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import { Lock } from "lucide-react";
 import { StatusPill } from "@/components/status-pill";
 
 /* ============================== Types ============================== */
@@ -38,6 +38,8 @@ export interface Campaign {
   progress_pct: number;
   period_start?: string | null;
   period_end?: string | null;
+  /** legacy — dikirim ulang saat PATCH agar tidak ditimpa default 30 backend */
+  min_minutes_per_juz?: number;
   /** Rincian progres per kelompok (multi-kelompok — rev 3) */
   groups_progress?: GroupProgress[];
 }
@@ -133,6 +135,20 @@ export const STATUS_LABEL: Record<string, string> = {
 
 export const isTerminal = (st: string) => st === "COMPLETED" || st === "CANCELLED";
 
+/** Transisi status yang diterima backend (khatmil service.rs): Cancel hanya dari Terjadwal/Aktif. */
+export function nextStatuses(status: string): string[] {
+  switch (status) {
+    case "DRAFT":
+      return ["DRAFT", "SCHEDULED", "ACTIVE"];
+    case "SCHEDULED":
+      return ["SCHEDULED", "ACTIVE", "CANCELLED"];
+    case "ACTIVE":
+      return ["ACTIVE", "COMPLETED", "CANCELLED"];
+    default:
+      return [status]; // COMPLETED / CANCELLED = terminal
+  }
+}
+
 export function StatusBadge({ status }: { status: string }) {
   // delegasi ke kit StatusPill — satu sumber gaya status utk seluruh admin
   return <StatusPill status={status} fallbackLabel={STATUS_LABEL[status] ?? status} />;
@@ -144,6 +160,16 @@ export function initials(name: string) {
     .slice(0, 2)
     .map((w) => w[0]?.toUpperCase() ?? "")
     .join("");
+}
+
+/** Cover campaign — presigned URL bisa kedaluwarsa/gagal: img disembunyikan, bukan menyisakan kotak kosong. */
+export function CoverImg({ src, alt, className }: { src: string; alt: string; className?: string }) {
+  const [err, setErr] = useState(false);
+  if (err || !src) return null;
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={src} alt={alt} className={className} loading="lazy" onError={() => setErr(true)} />
+  );
 }
 
 export function Avatar({ name, className = "" }: { name: string; className?: string }) {
@@ -174,7 +200,10 @@ export function MiniBar({ pct, className = "" }: { pct: number | null; className
 
 export function timeAgo(iso: string | null) {
   if (!iso) return "belum pernah";
-  const d = new Date(iso + "Z");
+  // Backend mengirim ISO-8601 UTC yang SUDAH berakhiran Z/offset — jangan tambah "Z" lagi (berakhir "…ZZ" → NaN).
+  const m = /[zZ]$|[+-]\d{2}:?\d{2}$/.test(iso) ? iso : `${iso}Z`;
+  const d = new Date(m);
+  if (Number.isNaN(d.getTime())) return "—"; // fallback utk tanggal tidak valid
   const s = Math.floor((Date.now() - d.getTime()) / 1000);
   if (s < 60) return "baru saja";
   if (s < 3600) return `${Math.floor(s / 60)} mnt lalu`;
@@ -182,16 +211,28 @@ export function timeAgo(iso: string | null) {
   return `${Math.floor(s / 86400)} hari lalu`;
 }
 
-/** PATCH campaign — ambil detail dulu utk field yang tak ada di list, jangan sampai menghapus data. */
-export async function patchCampaign(c: Campaign, patch: Partial<Campaign> & Record<string, unknown>, label: string) {
-  let base: Partial<CampaignDetail> = {};
-  if (patch.period_start === undefined || patch.period_end === undefined) {
+/** PATCH campaign — Return true hanya bila PATCH sukses; pemanggil WAJIB cek sebelum navigasi/onDone.
+ *  Periode: patch eksplisit → GET detail → fallback data daftar. Bila GET gagal DAN daftar tak
+ *  menyimpan periode, PATCH DIBATALKAN (jangan pernah mengirim null hasil kegagalan baca — backend
+ *  menulis ulang kolom periode dari payload). */
+export async function patchCampaign(c: Campaign, patch: Partial<Campaign> & Record<string, unknown>, label: string): Promise<boolean> {
+  const needsDetail = patch.period_start === undefined || patch.period_end === undefined;
+  let base: Partial<CampaignDetail> | null = null;
+  if (needsDetail) {
     try {
-      const { apiGet } = await import("@/lib/api");
       base = await apiGet<CampaignDetail>(`/khatmil/campaigns/${c.id}`);
     } catch {
-      /* biarkan null */
+      base = null;
     }
+  }
+  const periodStart =
+    patch.period_start !== undefined ? patch.period_start : base?.period_start !== undefined ? base.period_start : c.period_start ?? null;
+  const periodEnd =
+    patch.period_end !== undefined ? patch.period_end : base?.period_end !== undefined ? base.period_end : c.period_end ?? null;
+  if (needsDetail && base === null && (periodStart == null || periodEnd == null)) {
+    // sumber periode tidak bisa dipastikan (GET gagal + daftar tak menyimpannya) — jangan risiko menghapus data
+    toast.error("Gagal membaca periode campaign — perubahan dibatalkan demi keamanan data");
+    return false;
   }
   const body = {
     slug: c.slug,
@@ -201,22 +242,49 @@ export async function patchCampaign(c: Campaign, patch: Partial<Campaign> & Reco
     status: patch.status ?? c.status,
     target_khataman: patch.target_khataman ?? c.target_khataman,
     group_count: patch.group_count ?? c.group_count ?? 1,
-    period_start: patch.period_start !== undefined ? patch.period_start : base.period_start ?? null,
-    period_end: patch.period_end !== undefined ? patch.period_end : base.period_end ?? null,
+    period_start: periodStart,
+    period_end: periodEnd,
     require_manual_verification: patch.require_manual_verification ?? c.require_manual_verification,
     max_participants: patch.max_participants !== undefined ? patch.max_participants : c.max_participants ?? null,
+    // legacy — pertahankan nilai lama, jangan biarkan default 30 backend menimpa
+    ...(c.min_minutes_per_juz != null ? { min_minutes_per_juz: c.min_minutes_per_juz } : {}),
     ...(patch.cover_media_id !== undefined ? { cover_media_id: patch.cover_media_id } : {}),
     ...(patch.remove_cover ? { remove_cover: true } : {}),
   };
   try {
     await apiPatch(`/khatmil/campaigns/${c.id}`, body);
     toast.success(label);
+    return true;
   } catch (e) {
     toast.error(e instanceof ApiError ? e.message : "Gagal");
+    return false;
   }
 }
 
 /* ============================== Form (shared create/edit PAGE) ============================== */
+
+function initialForm(c: Campaign | null) {
+  if (!c) {
+    return {
+      slug: "", name: "", description: "", mode: "PARALLEL", status: "DRAFT",
+      group_count: "1", max_participants: "", period_start: "", period_end: "",
+      require_manual_verification: false,
+    };
+  }
+  return {
+    slug: c.slug,
+    name: c.name,
+    description: c.description ?? "",
+    mode: c.mode,
+    status: c.status,
+    group_count: String(c.group_count ?? c.target_khataman ?? 1),
+    max_participants: c.max_participants != null ? String(c.max_participants) : "",
+    // periode dari data yang SUDAH ada — fetch detail hanya melengkapi, gagal fetch tak boleh menghapus periode
+    period_start: c.period_start ?? "",
+    period_end: c.period_end ?? "",
+    require_manual_verification: c.require_manual_verification,
+  };
+}
 
 export function CampaignForm({
   editing,
@@ -230,22 +298,12 @@ export function CampaignForm({
   const c = editing;
   const locked = c ? isTerminal(c.status) : false;
 
-  const [form, setForm] = useState({
-    slug: "",
-    name: "",
-    description: "",
-    mode: "PARALLEL",
-    status: "DRAFT",
-    group_count: "1",
-    max_participants: "",
-    period_start: "",
-    period_end: "",
-    require_manual_verification: false,
-  });
+  // State awal dari props — parent WAJIB memberi key per campaign (lihat baru/ & edit/) agar reset saat pindah data.
+  const [form, setForm] = useState(() => initialForm(editing));
   const [busy, setBusy] = useState(false);
   // cover: media_id hasil upload baru + preview (object URL lokal / presigned URL dari server)
   const [coverMediaId, setCoverMediaId] = useState<number | null>(null);
-  const [coverPreview, setCoverPreview] = useState<string | null>(null);
+  const [coverPreview, setCoverPreview] = useState<string | null>(editing?.cover_url ?? null);
   const [coverBusy, setCoverBusy] = useState(false);
   const [coverRemoved, setCoverRemoved] = useState(false);
 
@@ -275,40 +333,6 @@ export function CampaignForm({
     }
   }
 
-  useEffect(() => {
-    if (isNew) {
-      setForm({
-        slug: "", name: "", description: "", mode: "PARALLEL", status: "DRAFT",
-        group_count: "1", max_participants: "", period_start: "", period_end: "",
-        require_manual_verification: false,
-      });
-      setCoverMediaId(null);
-      setCoverPreview(null);
-      setCoverRemoved(false);
-    } else if (c) {
-      setForm({
-        slug: c.slug,
-        name: c.name,
-        description: c.description ?? "",
-        mode: c.mode,
-        status: c.status,
-        group_count: String(c.group_count ?? c.target_khataman ?? 1),
-        max_participants: c.max_participants != null ? String(c.max_participants) : "",
-        period_start: "",
-        period_end: "",
-        require_manual_verification: c.require_manual_verification,
-      });
-      setCoverMediaId(null);
-      setCoverPreview(c.cover_url ?? null);
-      setCoverRemoved(false);
-      import("@/lib/api").then(({ apiGet }) =>
-        apiGet<CampaignDetail>(`/khatmil/campaigns/${c.id}`)
-          .then((d) => setForm((f) => ({ ...f, period_start: d.period_start ?? "", period_end: d.period_end ?? "" })))
-          .catch(() => {})
-      );
-    }
-  }, [editing, isNew, c]);
-
   async function submit() {
     setBusy(true);
     try {
@@ -332,7 +356,7 @@ export function CampaignForm({
         onDone();
       } else if (c) {
         const gc = Number(form.group_count) || 1;
-        await patchCampaign(
+        const ok = await patchCampaign(
           c,
           {
             name: form.name,
@@ -350,6 +374,7 @@ export function CampaignForm({
           },
           "Perubahan tersimpan"
         );
+        if (!ok) return; // gagal simpan: tetap di form, isian dipertahankan (toast error dari helper)
         onDone();
       }
     } catch (e) {
@@ -366,7 +391,7 @@ export function CampaignForm({
     <div className="mx-auto max-w-2xl space-y-6 pb-8">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">
-          {isNew ? "Campaign Khatmil Baru" : `Edit — ${c!.name}`}
+          {isNew ? "Campaign Khatmil Baru" : `Ubah — ${c!.name}`}
         </h1>
         <p className="text-sm text-muted-foreground">
           {isNew ? "Isi detail campaign khataman" : "Perubahan langsung berlaku setelah disimpan"}
@@ -386,15 +411,18 @@ export function CampaignForm({
         </div>
       )}
       {locked && (
-        <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-xs text-amber-800">
-          🔒 Campaign sudah <b>{STATUS_LABEL[c!.status]}</b> — terkunci permanen dan tidak dapat diubah. Data tetap
-          bisa dilihat di halaman detail.
+        <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-xs text-amber-800">
+          <Lock className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+          <span>
+            Campaign sudah <b>{STATUS_LABEL[c!.status]}</b> — terkunci permanen dan tidak dapat diubah. Data tetap
+            bisa dilihat di halaman detail.
+          </span>
         </div>
       )}
 
       <div className="space-y-6">
         <section className="space-y-3 rounded-lg border p-4">
-          <h2 className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Dasar</h2>
+          <h2 className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Informasi Khatmil</h2>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1">
               <Label>Slug (unik) {isNew ? "*" : ""}</Label>
@@ -472,7 +500,11 @@ export function CampaignForm({
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1">
               <Label>Mode</Label>
-              <Select value={form.mode} onValueChange={(v) => setForm({ ...form, mode: v ?? "PARALLEL" })}>
+              <Select
+                value={form.mode}
+                items={{ PARALLEL: "Paralel — bebas ambil juz", SEQUENTIAL: "Bergiliran — sesuai urutan" }}
+                onValueChange={(v) => setForm({ ...form, mode: v ?? "PARALLEL" })}
+              >
                 <SelectTrigger disabled={locked}>
                   <SelectValue />
                 </SelectTrigger>
@@ -486,6 +518,9 @@ export function CampaignForm({
               <Label>Jumlah Kelompok</Label>
               <Select
                 value={form.group_count}
+                items={Object.fromEntries(
+                  Array.from({ length: 10 }, (_, i) => [String(i + 1), `${i + 1} kelompok`])
+                )}
                 onValueChange={(v) => setForm({ ...form, group_count: v ?? "1" })}
               >
                 <SelectTrigger disabled={locked}>
@@ -518,6 +553,7 @@ export function CampaignForm({
               <Label>Verifikasi Manual</Label>
               <Select
                 value={form.require_manual_verification ? "1" : "0"}
+                items={{ "0": "Otomatis — posisi terakhir juz", "1": "Manual — menunggu ACC pengurus" }}
                 onValueChange={(v) => setForm({ ...form, require_manual_verification: v === "1" })}
               >
                 <SelectTrigger disabled={locked}>
@@ -556,24 +592,28 @@ export function CampaignForm({
           </div>
           <div className="space-y-1">
             <Label>{isNew ? "Status Awal" : "Status"}</Label>
-            <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v ?? "DRAFT" })}>
+            <Select
+              value={form.status}
+              items={Object.fromEntries(
+                (isNew ? ["DRAFT", "SCHEDULED", "ACTIVE"] : nextStatuses(c!.status)).map((s) => [s, STATUS_LABEL[s]])
+              )}
+              onValueChange={(v) => setForm({ ...form, status: v ?? "DRAFT" })}
+            >
               <SelectTrigger disabled={locked}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {(isNew ? ["DRAFT", "SCHEDULED", "ACTIVE"] : ["DRAFT", "SCHEDULED", "ACTIVE", "COMPLETED", "CANCELLED"]).map(
-                  (s) => (
-                    <SelectItem key={s} value={s}>
-                      {STATUS_LABEL[s]}
-                    </SelectItem>
-                  )
-                )}
+                {(isNew ? ["DRAFT", "SCHEDULED", "ACTIVE"] : nextStatuses(c!.status)).map((s) => (
+                  <SelectItem key={s} value={s}>
+                    {STATUS_LABEL[s]}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">
               {isNew
                 ? "Aktif = santri bisa langsung join & klaim juz."
-                : "Selesai / Dibatalkan = campaign terkunci permanen."}
+                : "Selesai / Dibatalkan = campaign terkunci permanen. Perubahan status mengikuti aturan transisi."}
             </p>
           </div>
         </section>
@@ -585,7 +625,7 @@ export function CampaignForm({
         </Button>
         {!locked && (
           <Button disabled={busy || !valid} onClick={submit}>
-            {busy ? "Menyimpan…" : isNew ? "Buat Campaign" : "Simpan Perubahan"}
+            {busy ? "Menyimpan…" : isNew ? "Buat Campaign" : "Simpan"}
           </Button>
         )}
       </div>

@@ -1,14 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+import { useParams } from "next/navigation";
 import { apiGet, apiPost } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
@@ -16,28 +14,25 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { ArrowLeft } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 
 import {
   ActivityEvent,
   Avatar,
   CampaignDetail,
-  GroupLite,
   isTerminal,
-  MiniBar,
   Participant,
-  StatusBadge,
-  STATUS_LABEL,
-  timeAgo,
 } from "../shared";
+import {
+  ActivitySpecSection,
+  HeroProgressAndKpis,
+  JuzMatrixSection,
+  JuzSel,
+  PesertaSection,
+  PetaGroup,
+  PrintView,
+  SessionHero,
+} from "./sections";
 
 interface UstadzOption {
   id: number;
@@ -46,44 +41,62 @@ interface UstadzOption {
   verified: boolean;
 }
 
-/** Detail campaign — HALAMAN PENUH 5 tab (rev 3.4: bukan dialog). */
+/** Detail campaign — SATU halaman tanpa tab, layout sesuai mockup ACC:
+ *  Hero → Analytics → Peta & Distribusi Juz → Peserta & Peringkat → Aktivitas + Detail Sesi. */
 export default function KhatmilDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const router = useRouter();
   const [detail, setDetail] = useState<CampaignDetail | null>(null);
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [activity, setActivity] = useState<ActivityEvent[]>([]);
   const [loading, setLoading] = useState(true);
-  const [sel, setSel] = useState<{ g: number; j: number } | null>(null); // juz terpilih per kelompok
+  const [error, setError] = useState<string | null>(null);
+  const [sel, setSel] = useState<JuzSel | null>(null);
+  const [printMode, setPrintMode] = useState(false);
+
+  // Mode cetak: render PrintView (data penuh) lalu buka dialog cetak.
+  useEffect(() => {
+    if (!printMode) return;
+    const selesai = () => setPrintMode(false);
+    window.addEventListener("afterprint", selesai);
+    const t = setTimeout(() => window.print(), 80);
+    return () => {
+      window.removeEventListener("afterprint", selesai);
+      clearTimeout(t);
+    };
+  }, [printMode]);
 
   // ---- dialog assign pembina kelompok ----
-  const [assignGroup, setAssignGroup] = useState<number | null>(null); // group_no aktif
+  const [assignGroup, setAssignGroup] = useState<number | null>(null);
   const [ustQuery, setUstQuery] = useState("");
   const [ustList, setUstList] = useState<UstadzOption[]>([]);
   const [ustLoading, setUstLoading] = useState(false);
   const [assignBusy, setAssignBusy] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [d, p, a] = await Promise.all([
-        apiGet<CampaignDetail>(`/khatmil/campaigns/${id}`),
-        apiGet<Participant[]>(`/khatmil/campaigns/${id}/participants`),
-        apiGet<ActivityEvent[]>(`/khatmil/campaigns/${id}/activity`),
-      ]);
-      setDetail(d);
-      setParticipants(p);
-      setActivity(a);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Gagal memuat");
-    } finally {
-      setLoading(false);
-    }
-  }, [id]);
-
   useEffect(() => {
-    load();
-  }, [load]);
+    let ignore = false;
+    Promise.all([
+      apiGet<CampaignDetail>(`/khatmil/campaigns/${id}`),
+      apiGet<Participant[]>(`/khatmil/campaigns/${id}/participants`),
+      apiGet<ActivityEvent[]>(`/khatmil/campaigns/${id}/activity`),
+    ])
+      .then(([d, p, a]) => {
+        if (!ignore) {
+          setDetail(d);
+          setParticipants(p);
+          setActivity(a);
+          setError(null);
+        }
+      })
+      .catch((e: unknown) => {
+        if (!ignore) setError(e instanceof Error ? e.message : "Gagal memuat");
+      })
+      .finally(() => {
+        if (!ignore) setLoading(false);
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [id]);
 
   // muat daftar ustadz utk dialog assign (debounce 350ms, hanya saat dialog terbuka)
   useEffect(() => {
@@ -93,7 +106,6 @@ export default function KhatmilDetailPage() {
       try {
         const qs = new URLSearchParams({ limit: "20" });
         if (ustQuery.trim()) qs.set("q", ustQuery.trim());
-        // apiGet sudah unwrap envelope {data:[...]} -> hasil = array langsung
         const res = await apiGet<UstadzOption[]>(`/admin/ustadz?${qs.toString()}`);
         setUstList(Array.isArray(res) ? res : []);
       } catch {
@@ -115,7 +127,7 @@ export default function KhatmilDetailPage() {
       toast.success(`Kelompok ${groupNo} → ${nama} — menunggu ACC ustadz`);
       setAssignGroup(null);
       setUstQuery("");
-      load();
+      muatUlang();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Gagal menugaskan pembina");
     } finally {
@@ -123,6 +135,28 @@ export default function KhatmilDetailPage() {
     }
   }
 
+  // reload dari handler (bukan effect)
+  function muatUlang() {
+    setLoading(true);
+    setError(null);
+    Promise.all([
+      apiGet<CampaignDetail>(`/khatmil/campaigns/${id}`),
+      apiGet<Participant[]>(`/khatmil/campaigns/${id}/participants`),
+      apiGet<ActivityEvent[]>(`/khatmil/campaigns/${id}/activity`),
+    ])
+      .then(([d, p, a]) => {
+        setDetail(d);
+        setParticipants(p);
+        setActivity(a);
+        setError(null);
+      })
+      .catch((e: unknown) => {
+        setError(e instanceof Error ? e.message : "Gagal memuat");
+      })
+      .finally(() => setLoading(false));
+  }
+
+  // peringkat: juz selesai terbanyak dulu, lalu nama
   const ranked = useMemo(
     () =>
       [...participants].sort(
@@ -131,670 +165,186 @@ export default function KhatmilDetailPage() {
     [participants]
   );
 
-  if (loading || !detail) {
+  // pemetaan peserta → kelompok dari kepemilikan juz (owner_name per kelompok)
+  const groupByName = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const g of detail?.juz_map_groups ?? [])
+      for (const s of g.slots)
+        if (s.owner_name && m[s.owner_name] === undefined) m[s.owner_name] = g.group_no;
+    return m;
+  }, [detail]);
+  const kelompokList = useMemo(
+    () =>
+      (detail?.groups ?? []).map((g) => ({
+        no: g.group_no,
+        pembina: g.pembina ?? g.pending_pembina ?? null,
+      })),
+    [detail]
+  );
+
+  if (loading) {
     return (
-      <div className="mx-auto max-w-4xl space-y-3 py-4">
-        <Skeleton className="h-8 w-72" />
-        <Skeleton className="h-24 w-full" />
-        <Skeleton className="h-64 w-full" />
+      <div className="space-y-6">
+        <Skeleton className="h-32 w-full rounded-2xl" />
+        <div className="grid gap-6 lg:grid-cols-12">
+          <Skeleton className="h-64 rounded-2xl lg:col-span-8" />
+          <div className="grid grid-cols-2 gap-4 lg:col-span-4">
+            <Skeleton className="h-28 rounded-2xl" />
+            <Skeleton className="h-28 rounded-2xl" />
+            <Skeleton className="h-28 rounded-2xl" />
+            <Skeleton className="h-28 rounded-2xl" />
+          </div>
+        </div>
+        <Skeleton className="h-96 w-full rounded-2xl" />
       </div>
     );
   }
 
-  // peta juz PER KELOMPOK (fallback juz_map flat utk BE lama)
-  const petaGroups = (() => {
-    const gmg = detail?.juz_map_groups ?? [];
+  if (error || !detail) {
+    return (
+      <div className="py-10">
+        <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-6 text-center">
+          <p className="text-sm text-destructive">{error ?? "Data campaign tidak tersedia"}</p>
+          <Button variant="outline" size="sm" className="mt-3" onClick={muatUlang}>
+            <RefreshCw className="size-4" /> Coba Lagi
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  const petaGroups: PetaGroup[] = (() => {
+    const gmg = detail.juz_map_groups ?? [];
     if (gmg.length > 0) {
-      return gmg.map((gm) => ({
-        group_no: gm.group_no,
-        pembina: detail?.groups?.find((g) => g.group_no === gm.group_no)?.pembina ?? null,
-        slots: gm.slots,
-      }));
+      return gmg.map((gm) => {
+        const grp = detail.groups?.find((g) => g.group_no === gm.group_no);
+        return {
+          group_no: gm.group_no,
+          pembina: grp?.pembina ?? null,
+          pending_pembina: grp?.pending_pembina ?? null,
+          slots: gm.slots,
+        };
+      });
     }
     return [
       {
         group_no: 1,
-        pembina: detail?.groups?.[0]?.pembina ?? null,
-        slots: detail?.juz_map ?? [],
+        pembina: detail.groups?.[0]?.pembina ?? null,
+        pending_pembina: detail.groups?.[0]?.pending_pembina ?? null,
+        slots: detail.juz_map ?? [],
       },
     ];
   })();
-  const multiGroup = petaGroups.length > 1;
-  // breakdown per kelompok utk Ringkasan/Peringkat/tab Kelompok (rev 3)
-  const gprog = petaGroups.map((pg) => ({
-    group_no: pg.group_no,
-    done: pg.slots.filter((s) => s.status === "COMPLETED").length,
-  }));
-  const khatamCount = gprog.filter((g) => g.done >= 30).length;
-  const pembinaCount = (detail.groups ?? []).filter((g) => g.pembina).length;
-  const doneByNo = new Map(gprog.map((g) => [g.group_no, g.done]));
-  const slot = sel
-    ? petaGroups.find((x) => x.group_no === sel.g)?.slots.find((s) => s.juz === sel.j) ?? null
-    : null;
+  const doneByNo: Record<number, number> = Object.fromEntries(
+    petaGroups.map((pg) => [pg.group_no, pg.slots.filter((s) => s.status === "COMPLETED").length])
+  );
+  const canWrite = !isTerminal(detail.status);
+  const belumTersedia = () => toast.info("Belum tersedia — butuh dukungan backend");
 
   return (
-    <div className="mx-auto max-w-4xl space-y-5">
-      {/* Header */}
-      <div className="flex flex-wrap items-start gap-3">
-        <Button variant="ghost" size="icon" onClick={() => router.push("/khatmil")} className="mt-1">
-          <ArrowLeft className="size-5" />
-        </Button>
-        <div className="min-w-0 flex-1">
-          <h1 className="flex flex-wrap items-center gap-2 text-2xl font-semibold tracking-tight">
-            {detail.name}
-            <StatusBadge status={detail.status} />
-          </h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            {detail.slug} · {detail.mode === "SEQUENTIAL" ? "Bergiliran" : "Paralel"} ·{" "}
-            {detail.participants} peserta
-          </p>
-        </div>
-        {!isTerminal(detail.status) && (
-          <Button variant="outline" onClick={() => router.push(`/khatmil/${detail.id}/edit`)}>
-            ✏️ Edit
-          </Button>
-        )}
-      </div>
-
-      <Tabs defaultValue="ringkasan">
-        <TabsList className="flex-wrap">
-          <TabsTrigger value="ringkasan">Ringkasan</TabsTrigger>
-          <TabsTrigger value="kelompok">Kelompok</TabsTrigger>
-          <TabsTrigger value="peta">Peta Juz</TabsTrigger>
-          <TabsTrigger value="peserta">Peserta</TabsTrigger>
-          <TabsTrigger value="aktivitas">Aktivitas</TabsTrigger>
-          <TabsTrigger value="peringkat">🏆 Peringkat</TabsTrigger>
-        </TabsList>
-
-        {/* ---- Ringkasan ---- */}
-        <TabsContent value="ringkasan" className="space-y-4">
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-            {(multiGroup
-              ? [
-                  { l: "Kelompok", v: String(detail.group_count ?? gprog.length) },
-                  { l: "Peserta", v: String(detail.participants) },
-                  { l: "Kelompok Khatam", v: `${khatamCount} dari ${gprog.length}` },
-                  { l: "Pembina", v: `${pembinaCount} dari ${gprog.length}` },
-                  { l: "Progress", v: `${detail.progress_pct}%` },
-                ]
-              : [
-                  { l: "Kelompok", v: "1" },
-                  { l: "Peserta", v: String(detail.participants) },
-                  { l: "Juz Selesai", v: `${detail.juz_completed} dari 30` },
-                  { l: "Juz Kosong", v: String(detail.juz_map.filter((j) => !j.status).length) },
-                  { l: "Progress", v: `${detail.progress_pct}%` },
-                ]
-            ).map((s) => (
-              <div key={s.l} className="rounded-lg border p-3">
-                <div className="text-xs text-muted-foreground">{s.l}</div>
-                <div className="mt-1 text-xl font-semibold">{s.v}</div>
-              </div>
-            ))}
-          </div>
-          {multiGroup && gprog.length > 1 && (
-            <div className="flex flex-wrap items-center gap-1.5">
-              {gprog.map((g) => (
-                <span
-                  key={g.group_no}
-                  className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs ${
-                    g.done >= 30
-                      ? "border-emerald-200 bg-emerald-50 font-semibold text-emerald-700"
-                      : "text-muted-foreground"
-                  }`}
-                >
-                  Kelompok {g.group_no} · {g.done} dari 30 juz{g.done >= 30 ? " · KHATAM" : ""}
-                </span>
-              ))}
-            </div>
-          )}
-          <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
-            <span>
-              Kelompok: <b className="text-foreground">{detail.group_count ?? detail.groups?.length ?? 1}</b>
-            </span>
-            <span>
-              Verifikasi:{" "}
-              <b className="text-foreground">
-                {detail.require_manual_verification ? "Manual (pengurus)" : "Otomatis (posisi)"}
-              </b>
-            </span>
-            {detail.period_start && (
-              <span>
-                Periode:{" "}
-                <b className="text-foreground">
-                  {detail.period_start}
-                  {detail.period_end ? ` – ${detail.period_end}` : ""}
-                </b>
-              </span>
-            )}
-            {detail.max_participants && (
-              <span>
-                Kuota: <b className="text-foreground">{detail.max_participants}</b>
-              </span>
-            )}
-          </div>
-          {detail.description && (
-            <p className="whitespace-pre-wrap rounded-lg border bg-muted/40 p-3 text-sm text-muted-foreground">
-              {detail.description}
-            </p>
-          )}
-        </TabsContent>
-
-        {/* ---- Kelompok ---- */}
-        <TabsContent value="kelompok" className="space-y-3">
-          {(detail.groups ?? []).length === 0 ? (
-            <div className="py-6 text-center text-sm text-muted-foreground">
-              Kelompok belum tersedia untuk campaign ini
-            </div>
-          ) : (
-            (detail.groups ?? []).map((g: GroupLite) => (
-              <div key={g.id} className="flex flex-wrap items-center gap-3 rounded-lg border p-4">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
-                  {g.group_no}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm font-semibold">Kelompok {g.group_no}</div>
-                  <div className="text-xs text-muted-foreground">
-                    <span className="font-medium text-foreground">
-                      {doneByNo.get(g.group_no) ?? 0} dari 30 juz selesai
-                    </span>{" "}
-                    · {g.member_count}/30 juz terisi
-                    {g.pembina ? (
-                      <>
-                        {" "}· Pembina: <b className="text-foreground">{g.pembina}</b>
-                      </>
-                    ) : g.pending_pembina ? (
-                      <>
-                        {" "}· Menunggu ACC: <b className="text-foreground">{g.pending_pembina}</b>
-                      </>
-                    ) : (
-                      <>{" "}· belum ada pembina</>
-                    )}
-                  </div>
-                </div>
-                <Badge
-                  variant="outline"
-                  className={
-                    (doneByNo.get(g.group_no) ?? 0) >= 30
-                      ? "border-emerald-300 bg-emerald-50 font-semibold text-emerald-700"
-                      : g.member_count >= 30
-                        ? "border-amber-200 bg-amber-50 text-amber-700"
-                        : "border-slate-200 bg-slate-50 text-slate-600"
-                  }
-                >
-                  {(doneByNo.get(g.group_no) ?? 0) >= 30
-                    ? "KHATAM"
-                    : g.member_count >= 30
-                      ? "Penuh"
-                      : "Terbuka"}
-                </Badge>
-                {g.pembina ? (
-                  <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">
-                    Pembina resmi
-                  </Badge>
-                ) : g.pending_pembina ? (
-                  <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">
-                    Menunggu ACC
-                  </Badge>
-                ) : null}
-                {!isTerminal(detail.status) && (
-                  <Button variant="outline" size="sm" onClick={() => setAssignGroup(g.group_no)}>
-                    {g.pembina || g.pending_pembina ? "Ganti Pembina" : "Tetapkan Pembina"}
-                  </Button>
-                )}
-              </div>
-            ))
-          )}
-          <p className="text-xs text-muted-foreground">
-            Penugasan dua langkah: tetapkan di sini → ustadz menerima notifikasi → ACC di aplikasi ustadz →
-            menjadi pembina resmi.
-          </p>
-        </TabsContent>
-
-        {/* ---- Peta Juz (per kelompok) ---- */}
-        <TabsContent value="peta" className="space-y-4">
-          {petaGroups.map((pg) => (
-            <div key={pg.group_no} className="space-y-2">
-              {multiGroup && (
-                <div className="flex flex-wrap items-baseline gap-2">
-                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
-                    {pg.group_no}
-                  </span>
-                  <span className="text-sm font-semibold">Kelompok {pg.group_no}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {pg.pembina ? `Pembina: ${pg.pembina}` : "belum ada pembina"} ·{" "}
-                    {pg.slots.filter((s) => s.status).length}/30 juz terisi
-                  </span>
-                </div>
-              )}
-              <div className="grid grid-cols-6 gap-1.5 sm:grid-cols-10">
-                {pg.slots.map((j) => (
-                  <button
-                    key={j.juz}
-                    onClick={() =>
-                      setSel(sel && sel.g === pg.group_no && sel.j === j.juz ? null : { g: pg.group_no, j: j.juz })
-                    }
-                title={j.status ? `Juz ${j.juz}: ${j.owner_name ?? "?"} — ${j.status}` : `Juz ${j.juz}: kosong`}
-                className={`flex h-10 items-center justify-center rounded-md border text-xs font-medium transition-sm ${
-                  j.status === "COMPLETED"
-                    ? "border-emerald-300 bg-emerald-100 text-emerald-800"
-                    : j.status
-                      ? "border-amber-300 bg-amber-100 text-amber-800"
-                      : "border-dashed text-muted-foreground hover:bg-muted"
-                } ${sel && sel.g === pg.group_no && sel.j === j.juz ? "ring-2 ring-primary ring-offset-1" : ""}`}
-              >
-                {j.juz}
-              </button>
-                ))}
-              </div>
-            </div>
-          ))}
-          <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-            <span>🟩 Selesai</span>
-            <span>🟨 Aktif dipegang</span>
-            <span>⬜ Kosong</span>
-          </div>
-          {slot && (
-            <div className="rounded-lg border bg-muted/40 p-4 text-sm">
-              <b>{multiGroup && `Kelompok ${sel!.g} · `}Juz {slot.juz}</b>
-              {!slot.status ? (
-                <span className="ml-2 text-muted-foreground">kosong — belum diklaim</span>
-              ) : (
-                <div className="mt-2 space-y-1 text-muted-foreground">
-                  <div>
-                    Pemilik: <b className="text-foreground">{slot.owner_name ?? "?"}</b> ·{" "}
-                    <StatusBadge status={slot.status} />
-                  </div>
-                  {slot.status !== "COMPLETED" &&
-                    (slot.current_surah != null ? (
-                      <div>
-                        Posisi bacaan:{" "}
-                        <b className="text-foreground">
-                          QS {slot.current_surah}:{slot.current_ayah}
-                        </b>{" "}
-                        · {slot.progress_pct ?? 0}%
-                      </div>
-                    ) : (
-                      <div>Belum ada laporan posisi bacaan</div>
-                    ))}
-                  {slot.completed_at && (
-                    <div>
-                      Selesai & terverifikasi: <b className="text-foreground">{slot.completed_at.slice(0, 10)}</b>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-        </TabsContent>
-
-        {/* ---- Peserta ---- */}
-        <TabsContent value="peserta" className="space-y-3">
-          {participants.length === 0 ? (
-            <div className="py-6 text-center text-sm text-muted-foreground">Belum ada peserta</div>
-          ) : (
-            <>
-              <div className="hidden overflow-hidden rounded-lg border md:block">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Peserta</TableHead>
-                      <TableHead>Join</TableHead>
-                      <TableHead>Juz Dipegang</TableHead>
-                      <TableHead>Juz Selesai</TableHead>
-                      <TableHead>Progres Bacaan</TableHead>
-                      <TableHead>Progres Tugas</TableHead>
-                      <TableHead>Kontribusi</TableHead>
-                      <TableHead>Terakhir Lapor</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {participants.map((p) => (
-                      <TableRow key={p.user_id}>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Avatar name={p.full_name} />
-                            <span className="text-sm font-medium">{p.full_name}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-xs text-muted-foreground">{p.joined_at.slice(0, 10)}</TableCell>
-                        <TableCell>
-                          <div className="flex max-w-40 flex-wrap gap-1">
-                            {p.juz_active.length === 0 ? (
-                              <span className="text-xs text-muted-foreground">—</span>
-                            ) : (
-                              p.juz_active.map((j) => (
-                                <span
-                                  key={j.juz}
-                                  className="rounded border border-amber-200 bg-amber-50 px-1.5 text-xs font-medium text-amber-800"
-                                >
-                                  {j.juz}
-                                  {j.progress_pct != null ? ` · ${j.progress_pct}%` : ""}
-                                </span>
-                              ))
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex max-w-40 flex-wrap gap-1">
-                            {p.juz_done.length === 0 ? (
-                              <span className="text-xs text-muted-foreground">—</span>
-                            ) : (
-                              p.juz_done.map((j) => (
-                                <span
-                                  key={j.juz}
-                                  className="rounded border border-emerald-200 bg-emerald-50 px-1.5 text-xs font-medium text-emerald-800"
-                                >
-                                  {j.juz}
-                                </span>
-                              ))
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          {p.juz_active.length === 0 ? (
-                            <span className="text-xs text-muted-foreground">—</span>
-                          ) : p.juz_active[0].progress_pct == null ? (
-                            <span className="text-xs text-muted-foreground">belum ada posisi</span>
-                          ) : (
-                            <MiniBar pct={p.juz_active[0].progress_pct} />
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <MiniBar pct={p.task_progress_pct} />
-                        </TableCell>
-                        <TableCell>
-                          <MiniBar pct={p.contribution_pct} />
-                        </TableCell>
-                        <TableCell className="text-xs text-muted-foreground">{timeAgo(p.last_reported_at)}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-              <div className="space-y-2 md:hidden">
-                {participants.map((p) => (
-                  <div key={p.user_id} className="rounded-lg border p-3">
-                    <div className="flex items-center gap-2">
-                      <Avatar name={p.full_name} />
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-semibold">{p.full_name}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {p.juz_active.length > 0
-                            ? `juz ${p.juz_active.map((j) => j.juz).join(", ")} dipegang`
-                            : "tidak pegang juz"}
-                        </div>
-                      </div>
-                      <span className="rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-xs font-semibold text-emerald-700">
-                        {p.juz_done_count} juz
-                      </span>
-                    </div>
-                    <div className="mt-2 space-y-1.5">
-                      <div className="flex items-center gap-2 text-xs">
-                        <span className="w-20 text-muted-foreground">Kontribusi</span>
-                        <MiniBar pct={p.contribution_pct} className="flex-1" />
-                      </div>
-                      <div className="flex items-center gap-2 text-xs">
-                        <span className="w-20 text-muted-foreground">Progres Tugas</span>
-                        <MiniBar pct={p.task_progress_pct} className="flex-1" />
-                      </div>
-                    </div>
-                    <div className="mt-1.5 text-xs text-muted-foreground">lapor {timeAgo(p.last_reported_at)}</div>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-        </TabsContent>
-
-        {/* ---- Aktivitas ---- */}
-        <TabsContent value="aktivitas" className="space-y-2">
-          {activity.length === 0 ? (
-            <div className="py-6 text-center text-sm text-muted-foreground">Belum ada laporan progres</div>
-          ) : (
-            activity.map((e, i) => (
-              <div key={i} className="flex items-start gap-3 rounded-lg border p-3">
-                <Avatar name={e.full_name} />
-                <div className="min-w-0 flex-1 text-sm">
-                  <b>{e.full_name}</b> <span className="text-muted-foreground">— Juz {e.juz}:</span>{" "}
-                  {e.current_surah != null ? (
-                    <span>
-                      QS {e.current_surah}:{e.current_ayah}
-                      {e.completed && <span className="ml-1 font-semibold text-emerald-700">✓ selesai</span>}
-                    </span>
-                  ) : (
-                    <span className="text-muted-foreground">laporan lama</span>
-                  )}
-                  {e.note && <div className="mt-0.5 text-xs text-muted-foreground">“{e.note}”</div>}
-                </div>
-                <span className="shrink-0 text-xs text-muted-foreground">{timeAgo(e.created_at)}</span>
-              </div>
-            ))
-          )}
-        </TabsContent>
-
-        {/* ---- Peringkat ---- */}
-        <TabsContent value="peringkat" className="space-y-4">
-          <div className="rounded-lg border bg-gradient-to-b from-primary/5 to-transparent p-4">
-            {multiGroup && gprog.length > 1 ? (
-              <>
-                <div className="flex items-baseline justify-between">
-                  <span className="text-sm font-semibold">Khataman per Kelompok</span>
-                  <span className="text-2xl font-bold tabular-nums text-primary">
-                    {khatamCount}
-                    <span className="ml-1 text-xs font-medium text-muted-foreground">
-                      dari {gprog.length} kelompok khatam
-                    </span>
-                  </span>
-                </div>
-                <div className="mt-2 flex gap-1">
-                  {gprog.map((g) => (
-                    <div
-                      key={g.group_no}
-                      title={`Kelompok ${g.group_no} — ${g.done} dari 30 juz selesai`}
-                      className={`h-3.5 flex-1 rounded-sm ${
-                        g.done >= 30 ? "bg-emerald-500" : g.done > 0 ? "bg-amber-400/80" : "bg-muted"
-                      }`}
-                    />
-                  ))}
-                </div>
-                <div className="mt-1.5 flex flex-wrap justify-between gap-1 text-xs text-muted-foreground">
-                  <span>
-                    <b>{khatamCount} kelompok khatam</b> · {gprog.filter((g) => g.done > 0).length} kelompok
-                    berjalan
-                  </span>
-                  <span>
-                    <b>{participants.filter((p) => p.juz_done_count > 0).length} peserta</b> menyumbang
-                  </span>
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="flex items-baseline justify-between">
-                  <span className="text-sm font-semibold">Total Progres Khataman</span>
-                  <span className="text-2xl font-bold tabular-nums text-primary">
-                    {detail.progress_pct}%
-                    <span className="ml-1 text-xs font-medium text-muted-foreground">
-                      · {detail.juz_completed} dari 30 juz
-                    </span>
-                  </span>
-                </div>
-                <div className="mt-2 flex gap-0.5">
-                  {detail.juz_map.map((j) => (
-                    <div
-                      key={j.juz}
-                      title={`Juz ${j.juz}${j.status ? ` — ${j.status}` : " — kosong"}`}
-                      className={`h-3.5 flex-1 rounded-sm ${
-                        j.status === "COMPLETED" ? "bg-primary" : j.status ? "bg-amber-400/80" : "bg-muted"
-                      }`}
-                    />
-                  ))}
-                </div>
-                <div className="mt-1.5 flex flex-wrap justify-between gap-1 text-xs text-muted-foreground">
-                  <span>
-                    <b>{detail.juz_map.filter((j) => j.status === "COMPLETED").length} selesai</b> ·{" "}
-                    {detail.juz_map.filter((j) => j.status && j.status !== "COMPLETED").length} dibaca ·{" "}
-                    {detail.juz_map.filter((j) => !j.status).length} kosong
-                  </span>
-                  <span>
-                    <b>{participants.filter((p) => p.juz_done_count > 0).length} peserta</b> menyumbang
-                  </span>
-                </div>
-              </>
-            )}
-          </div>
-
-          {ranked.filter((p) => p.juz_done_count > 0).length > 0 && (
-            <div className="grid grid-cols-3 gap-2 sm:gap-3">
-              {[1, 0, 2].map((idx) => {
-                const p = ranked[idx];
-                if (!p) return <div key={idx} />;
-                const rank = ranked.indexOf(p);
-                const medals = ["🥈", "🥇", "🥉"];
-                const ring = ["border-slate-300", "border-amber-400 bg-amber-50/60", "border-orange-300"];
-                return (
-                  <div key={p.user_id} className={`rounded-xl border p-3 text-center ${ring[rank] ?? ring[0]}`}>
-                    <div className="text-lg">{medals[rank]}</div>
-                    <Avatar name={p.full_name} className={`mx-auto mt-1 ${idx === 0 ? "h-11 w-11 text-sm" : ""}`} />
-                    <div className="mt-1.5 truncate text-xs font-semibold sm:text-sm">{p.full_name}</div>
-                    <div className="text-xs text-muted-foreground">
-                      <b className="text-foreground">{p.juz_done_count} juz</b> selesai
-                    </div>
-                    <div className="text-xs font-semibold text-primary">
-                      {p.contribution_pct != null ? `${p.contribution_pct}%` : "—"}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          <div className="hidden overflow-hidden rounded-lg border md:block">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-10">#</TableHead>
-                  <TableHead>Peserta</TableHead>
-                  <TableHead>Juz Selesai</TableHead>
-                  <TableHead>Dipegang</TableHead>
-                  <TableHead>Kontribusi /30</TableHead>
-                  <TableHead>Progres Bacaan</TableHead>
-                  <TableHead>Terakhir Lapor</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {ranked.map((p, i) => (
-                  <TableRow key={p.user_id}>
-                    <TableCell className="text-xs text-muted-foreground">{i + 1}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Avatar name={p.full_name} />
-                        <span className="text-sm font-medium">{p.full_name}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <span className="rounded border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">
-                        {p.juz_done_count} juz
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {p.juz_active.length ? `juz ${p.juz_active.map((j) => j.juz).join(", ")}` : "—"}
-                    </TableCell>
-                    <TableCell>
-                      <MiniBar pct={p.contribution_pct} />
-                    </TableCell>
-                    <TableCell>
-                      {p.juz_active[0]?.progress_pct != null ? (
-                        <MiniBar pct={p.juz_active[0].progress_pct} />
-                      ) : (
-                        <span className="text-xs text-muted-foreground">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{timeAgo(p.last_reported_at)}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-
-          <div className="space-y-2 md:hidden">
-            {ranked.map((p, i) => (
-              <div key={p.user_id} className="rounded-lg border p-3">
-                <div className="flex items-center gap-2">
-                  <span className="w-5 text-xs font-semibold text-muted-foreground">{i + 1}</span>
-                  <Avatar name={p.full_name} />
-                  <div className="min-w-0 flex-1 truncate text-sm font-semibold">{p.full_name}</div>
-                  <span className="rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-xs font-semibold text-emerald-700">
-                    {p.juz_done_count} juz
-                  </span>
-                </div>
-                {p.juz_active.length > 0 && (
-                  <div className="mt-1 pl-7 text-xs text-muted-foreground">
-                    juz {p.juz_active.map((j) => j.juz).join(", ")} dipegang
-                  </div>
-                )}
-                <div className="mt-2 space-y-1.5 pl-7">
-                  <div className="flex items-center gap-2 text-xs">
-                    <span className="w-20 text-muted-foreground">Kontribusi</span>
-                    <MiniBar pct={p.contribution_pct} className="flex-1" />
-                  </div>
-                  <div className="flex items-center gap-2 text-xs">
-                    <span className="w-20 text-muted-foreground">Progres Bacaan</span>
-                    <MiniBar pct={p.juz_active[0]?.progress_pct ?? null} className="flex-1" />
-                  </div>
-                </div>
-                <div className="mt-1 pl-7 text-xs text-muted-foreground">lapor {timeAgo(p.last_reported_at)}</div>
-              </div>
-            ))}
-          </div>
-        </TabsContent>
-      </Tabs>
-
-      {/* ---- Dialog: tetapkan pembina kelompok ---- */}
-      <Dialog open={assignGroup != null} onOpenChange={(o) => !o && setAssignGroup(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Tetapkan Pembina — Kelompok {assignGroup}</DialogTitle>
-            <DialogDescription>
-              Pilih ustadz; penugasan berlaku setelah di-ACC ustadz di aplikasinya.
-            </DialogDescription>
-          </DialogHeader>
-          <Input
-            placeholder="Cari nama ustadz…"
-            value={ustQuery}
-            onChange={(e) => setUstQuery(e.target.value)}
+    <div className="mx-auto max-w-7xl space-y-8 pb-6" data-khatmil-print>
+      {printMode ? (
+        <PrintView
+          detail={detail}
+          petaGroups={petaGroups}
+          doneByNo={doneByNo}
+          ranked={ranked}
+          activity={activity}
+        />
+      ) : (
+        <>
+          <SessionHero
+            detail={detail}
+            canWrite={canWrite}
+            onCetak={() => setPrintMode(true)}
+            onBagikan={() => {
+              navigator.clipboard
+                ?.writeText(location.href)
+                .then(() => toast.success("Tautan halaman disalin"))
+                .catch(() => toast.error("Gagal menyalin tautan"));
+            }}
           />
-          <div className="max-h-72 space-y-1 overflow-y-auto">
-            {ustLoading && (
-              <div className="py-4 text-center text-sm text-muted-foreground">Memuat…</div>
-            )}
-            {!ustLoading && ustList.length === 0 && (
-              <div className="py-4 text-center text-sm text-muted-foreground">
-                Tidak ada ustadz ditemukan
-              </div>
-            )}
-            {ustList.map((u) => (
-              <button
-                key={u.id}
-                disabled={assignBusy}
-                onClick={() => assignPembina(assignGroup!, u.id, u.full_name)}
-                className="flex w-full items-center gap-2 rounded-lg border p-2 text-left transition-colors hover:bg-muted disabled:opacity-50"
-              >
-                <Avatar name={u.full_name} />
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-medium">{u.full_name}</div>
-                  <div className="truncate text-xs text-muted-foreground">
-                    {u.city || "tanpa kota"}
-                    {u.verified ? " · Terverifikasi" : ""}
+          <HeroProgressAndKpis
+            detail={detail}
+            petaGroups={petaGroups}
+            doneByNo={doneByNo}
+            participants={participants}
+          />
+          <JuzMatrixSection
+            detail={detail}
+            petaGroups={petaGroups}
+            doneByNo={doneByNo}
+            canWrite={canWrite}
+            sel={sel}
+            onJuz={(s) => setSel(sel && sel.g === s.g && sel.j === s.j ? null : s)}
+            onCloseSlot={() => setSel(null)}
+            onBelumTersedia={belumTersedia}
+            onAssign={(g) => {
+              setAssignGroup(g);
+              setUstQuery("");
+            }}
+          />
+          <PesertaSection
+            ranked={ranked}
+            participantsCount={participants.length}
+            kelompokList={kelompokList}
+            groupByName={groupByName}
+          />
+          <ActivitySpecSection
+            activity={activity}
+            detail={detail}
+            canWrite={canWrite}
+            onBelumTersedia={belumTersedia}
+          />
+
+          {/* ---- Dialog: tetapkan pembina kelompok ---- */}
+          <Dialog open={assignGroup != null} onOpenChange={(o) => !o && setAssignGroup(null)}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Tetapkan Pembina — Kelompok {assignGroup}</DialogTitle>
+                <DialogDescription>
+                  Pilih ustadz; penugasan berlaku setelah di-ACC ustadz di aplikasinya.
+                </DialogDescription>
+              </DialogHeader>
+              <Input
+                placeholder="Cari nama ustadz…"
+                value={ustQuery}
+                onChange={(e) => setUstQuery(e.target.value)}
+              />
+              <div className="max-h-72 space-y-1 overflow-y-auto">
+                {ustLoading && (
+                  <div className="py-4 text-center text-sm text-muted-foreground">Memuat…</div>
+                )}
+                {!ustLoading && ustList.length === 0 && (
+                  <div className="py-4 text-center text-sm text-muted-foreground">
+                    Tidak ada ustadz ditemukan
                   </div>
-                </div>
-                <span className="shrink-0 text-xs font-semibold text-primary">
-                  {assignBusy ? "Menugaskan…" : "Tugaskan →"}
-                </span>
-              </button>
-            ))}
-          </div>
-        </DialogContent>
-      </Dialog>
+                )}
+                {ustList.map((u) => (
+                  <button
+                    key={u.id}
+                    disabled={assignBusy}
+                    onClick={() => assignPembina(assignGroup!, u.id, u.full_name)}
+                    className="flex w-full items-center gap-2 rounded-lg border p-2 text-left transition-colors hover:bg-muted disabled:opacity-50"
+                  >
+                    <Avatar name={u.full_name} />
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-medium">{u.full_name}</div>
+                      <div className="truncate text-xs text-muted-foreground">
+                        {u.city || "tanpa kota"}
+                        {u.verified ? " · Terverifikasi" : ""}
+                      </div>
+                    </div>
+                    <span className="shrink-0 text-xs font-semibold text-primary">
+                      {assignBusy ? "Menugaskan…" : "Tugaskan →"}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </DialogContent>
+          </Dialog>
+        </>
+      )}
     </div>
   );
 }
