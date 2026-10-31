@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CheckCircle2, Copy, Receipt, RefreshCw, ShieldCheck, XCircle } from "lucide-react";
+import { Copy, Download, FileDown, Receipt, RefreshCw, ShieldCheck, Upload, X, XCircle } from "lucide-react";
 import { apiGetPage, apiPost, ApiError } from "@/lib/api";
 import { AnimatedRupiah } from "@/components/animated-rupiah";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,9 @@ import {
   TableSkeleton,
   EmptyRow,
   Pager,
+  RowNo,
+  AksiCell,
+  TombolAksi,
 } from "@/components/data-table";
 import { rp, fmtDateTime } from "@/lib/format";
 import { toast } from "sonner";
@@ -300,7 +303,7 @@ export default function PayoutsPage() {
   ];
 
   return (
-    <div className="space-y-5">
+    <div className="@container space-y-5">
       {/* Header + aksi */}
       <section className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div className="min-w-0">
@@ -325,10 +328,10 @@ export default function PayoutsPage() {
         </div>
         <div className="flex shrink-0 items-center gap-2.5">
           <Button variant="outline" size="sm" disabled={exporting} onClick={downloadCsv}>
-            Daftar Transfer
+            <FileDown className="size-4" /> Daftar Transfer
           </Button>
           <Button size="sm" disabled={uploading} onClick={() => fileRef.current?.click()}>
-            {uploading ? "Memproses…" : "Unggah Bukti Transfer"}
+            <Upload className="size-4" /> {uploading ? "Memproses…" : "Unggah Bukti Transfer"}
           </Button>
           <input
             ref={fileRef}
@@ -344,13 +347,13 @@ export default function PayoutsPage() {
       </section>
 
       {/* KPI — agregat seluruh pengajuan */}
-      <section className="grid grid-cols-1 gap-4 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2 motion-safe:duration-500 md:grid-cols-2 lg:grid-cols-4">
+      <section className="grid grid-cols-1 gap-4 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2 motion-safe:duration-500 md:grid-cols-2 @[1100px]:grid-cols-4">
         <div className="relative flex flex-col justify-between overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-900 via-emerald-700 to-teal-700 p-5 text-white shadow-sm transition-transform motion-safe:hover:-translate-y-1">
           <div>
-            <div className="flex items-center justify-between gap-2 text-xs font-medium text-emerald-100">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-medium text-emerald-100">
               <span>Total Penarikan (bulan ini)</span>
               {fin?.deltaPct != null && (
-                <span className="rounded-full border border-white/10 bg-white/15 px-2 py-0.5 text-[11px] font-bold">
+                <span className="whitespace-nowrap rounded-full border border-white/10 bg-white/15 px-2 py-0.5 text-[11px] font-bold">
                   {fin.deltaPct >= 0 ? "+" : ""}
                   {fin.deltaPct}% vs bln lalu
                 </span>
@@ -363,9 +366,9 @@ export default function PayoutsPage() {
               Akumulasi dari {fin?.countBulanIni ?? 0} penarikan disetujui
             </p>
           </div>
-          <div className="mt-4 flex items-center justify-between border-t border-white/10 pt-3 text-[11px] text-emerald-200">
-            <span>Rata-rata: ~{fin ? rp(fin.rata2) : "—"}/tarik</span>
-            <span className="flex items-center gap-1 font-medium text-white">
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 border-t border-white/10 pt-3 text-[11px] text-emerald-200">
+            <span className="whitespace-nowrap">Rata-rata: ~{fin ? rp(fin.rata2) : "—"}/tarik</span>
+            <span className="flex items-center gap-1 whitespace-nowrap font-medium text-white">
               <ShieldCheck className="size-3.5 text-emerald-300" /> Terlindungi
             </span>
           </div>
@@ -373,12 +376,12 @@ export default function PayoutsPage() {
 
         <div className="flex flex-col justify-between rounded-2xl border bg-card p-5 shadow-sm transition-transform motion-safe:hover:-translate-y-1">
           <div>
-            <div className="flex items-center justify-between text-xs font-medium text-muted-foreground">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-medium text-muted-foreground">
               <span className="flex items-center gap-2">
                 <span className="size-2 rounded-full bg-emerald-500 motion-safe:animate-pulse" />
                 Dicairkan Hari Ini
               </span>
-              <span className="rounded-md border border-emerald-100 bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40">
+              <span className="whitespace-nowrap rounded-md border border-emerald-100 bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40">
                 {fin?.hariIniCount ?? 0} Penarikan
               </span>
             </div>
@@ -386,17 +389,17 @@ export default function PayoutsPage() {
               <AnimatedRupiah value={fin?.hariIniNominal ?? 0} />
             </h3>
           </div>
-          <div className="mt-4 flex items-center justify-between border-t pt-3 text-xs font-medium text-muted-foreground">
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 border-t pt-3 text-xs font-medium text-muted-foreground">
             <span>Dana keluar harian</span>
-            <span className="font-bold">{fin?.hariIniCount ?? 0} Penerima</span>
+            <span className="whitespace-nowrap font-bold">{fin?.hariIniCount ?? 0} Penerima</span>
           </div>
         </div>
 
         <div className="flex flex-col justify-between rounded-2xl border border-amber-200/80 bg-gradient-to-b from-amber-50/30 to-transparent p-5 shadow-sm transition-transform motion-safe:hover:-translate-y-1 dark:border-amber-800 dark:bg-amber-950/10">
           <div>
-            <div className="flex items-center justify-between gap-2 text-xs font-medium">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-medium">
               <span className="flex items-center gap-2 text-amber-700 dark:text-amber-400">Menunggu ACC Bank</span>
-              <span className="motion-safe:animate-pulse rounded-md bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800 dark:bg-amber-900">
+              <span className="motion-safe:animate-pulse whitespace-nowrap rounded-md bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800 dark:bg-amber-900">
                 Perlu Verifikasi
               </span>
             </div>
@@ -411,11 +414,11 @@ export default function PayoutsPage() {
 
         <div className="flex flex-col justify-between rounded-2xl border bg-card p-5 shadow-sm transition-transform motion-safe:hover:-translate-y-1">
           <div>
-            <div className="flex items-center justify-between gap-2 text-xs font-medium text-muted-foreground">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-medium text-muted-foreground">
               <span className="flex items-center gap-2">
                 <Receipt className="size-4" /> Total Potongan Fee Admin
               </span>
-              <span className="rounded-md bg-muted px-2 py-0.5 text-[11px] font-medium">Interbank</span>
+              <span className="whitespace-nowrap rounded-md bg-muted px-2 py-0.5 text-[11px] font-medium">Interbank</span>
             </div>
             <h3 className="mt-3 text-2xl font-bold tracking-tight">
               <AnimatedRupiah value={fin?.feeTotal ?? 0} />
@@ -424,9 +427,9 @@ export default function PayoutsPage() {
               {fin?.feeCount ?? 0} transfer berpotongan fee
             </p>
           </div>
-          <div className="mt-4 flex items-center justify-between border-t pt-3 text-xs font-medium text-muted-foreground">
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 border-t pt-3 text-xs font-medium text-muted-foreground">
             <span>Beban transfer bank</span>
-            <span className="font-semibold">Tercatat Otomatis</span>
+            <span className="whitespace-nowrap font-semibold">Tercatat Otomatis</span>
           </div>
         </div>
       </section>
@@ -489,7 +492,7 @@ export default function PayoutsPage() {
             <RefreshCw className={`size-4 ${list.loading ? "motion-safe:animate-spin" : ""}`} /> Muat Ulang
           </Button>
           <Button size="sm" disabled={exporting} onClick={downloadCsv}>
-            Unduh CSV
+            <Download className="size-4" /> Unduh CSV
           </Button>
         </div>
       </section>
@@ -499,14 +502,14 @@ export default function PayoutsPage() {
           <TableHeader>
             <TableRow>
               <Head label="No." className="w-12 text-center" />
-              <Head label="ID Tarik" />
+              <Head label="Aksi" />
+              <SortHead label="Status" col="status" sort={list.sort} order={list.order} onSort={list.toggleSort} />
+              <Head label="Nomor" />
               <Head label="Ustadz" />
               <Head label="Bank / Rekening Tujuan" />
               <SortHead label="Diterima" col="amount" sort={list.sort} order={list.order} onSort={list.toggleSort} className="text-right" />
               <Head label="Fee" className="text-right" />
-              <SortHead label="Status" col="status" sort={list.sort} order={list.order} onSort={list.toggleSort} />
               <SortHead label="Waktu" col="created_at" sort={list.sort} order={list.order} onSort={list.toggleSort} />
-              <Head label="Aksi" className="text-center" />
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -516,11 +519,45 @@ export default function PayoutsPage() {
               <EmptyRow colSpan={9} message="Belum ada pengajuan penarikan." />
             ) : (
               itemsTampil.map((p, i) => (
-                <TableRow key={p.id} className="visits-row">
-                  <TableCell className="text-center text-muted-foreground">{(list.page - 1) * 20 + i + 1}</TableCell>
+                <TableRow key={p.id} className="row-accent">
+                  <RowNo i={i} page={list.page} perPage={20} />
+                  <AksiCell>
+                    <div className="flex items-center gap-1.5">
+                      {p.status === "PENDING" && (
+                        <>
+                          <TombolAksi
+                            label="ACC"
+                            variant="default"
+                            disabled={busy === p.id}
+                            onClick={() => approve(p)}
+                          />
+                          <TombolAksi
+                            label="Tolak"
+                            variant="destructive"
+                            disabled={busy === p.id}
+                            onClick={() => setRejectTarget(p)}
+                          />
+                        </>
+                      )}
+                      {p.status === "APPROVED" && (
+                        <TombolAksi label="Sudah ditransfer" disabled={busy === p.id} onClick={() => markTransferred(p)} />
+                      )}
+                    </div>
+                  </AksiCell>
+                  <TableCell>
+                    <StatusPill status={p.status} />
+                    {p.status === "REJECTED" && p.rejected_reason && (
+                      <div className="mt-1 max-w-52 text-xs text-red-600">{p.rejected_reason}</div>
+                    )}
+                  </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1.5">
-                      <span className="font-mono text-xs font-bold">{idTarik(p.id)}</span>
+                      <span
+                        className="inline-block rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] font-medium text-muted-foreground"
+                        title={`Nomor penarikan ${idTarik(p.id)}`}
+                      >
+                        {idTarik(p.id)}
+                      </span>
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -572,38 +609,8 @@ export default function PayoutsPage() {
                     {rp(p.fee)}
                   </TableCell>
                   <TableCell>
-                    <StatusPill status={p.status} />
-                    {p.status === "REJECTED" && p.rejected_reason && (
-                      <div className="mt-1 max-w-52 text-xs text-red-600">{p.rejected_reason}</div>
-                    )}
-                  </TableCell>
-                  <TableCell>
                     <div className="text-sm font-medium">{fmtDateTime(p.created_at).split(",")[0]}</div>
                     <div className="text-[11px] text-muted-foreground">{fmtDateTime(p.created_at).split(", ")[1]}</div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center justify-center gap-1.5">
-                      {p.status === "PENDING" && (
-                        <>
-                          <Button size="xs" disabled={busy === p.id} onClick={() => approve(p)}>
-                            <CheckCircle2 className="mr-1 size-3.5" /> ACC
-                          </Button>
-                          <Button size="xs" variant="destructive" disabled={busy === p.id} onClick={() => setRejectTarget(p)}>
-                            <XCircle className="mr-1 size-3.5" /> Tolak
-                          </Button>
-                        </>
-                      )}
-                      {p.status === "APPROVED" && (
-                        <Button size="xs" variant="outline" disabled={busy === p.id} onClick={() => markTransferred(p)}>
-                          Sudah ditransfer
-                        </Button>
-                      )}
-                      {p.status === "REJECTED" && p.rejected_reason && (
-                        <span className="text-xs text-muted-foreground" title={p.rejected_reason}>
-                          Detail alasan
-                        </span>
-                      )}
-                    </div>
                   </TableCell>
                 </TableRow>
               ))
@@ -651,10 +658,10 @@ export default function PayoutsPage() {
           />
           <DialogFooter>
             <Button variant="outline" onClick={() => setRejectTarget(null)}>
-              Batal
+              <X className="size-4" /> Batal
             </Button>
             <Button variant="destructive" disabled={busy === rejectTarget?.id} onClick={reject}>
-              Tolak &amp; Kembalikan Dana
+              <XCircle className="size-4" /> Tolak &amp; Kembalikan Dana
             </Button>
           </DialogFooter>
         </DialogContent>

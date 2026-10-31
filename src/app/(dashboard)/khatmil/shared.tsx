@@ -15,7 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Lock } from "lucide-react";
+import { ImagePlus, Lock, Trash2 } from "lucide-react";
 import { StatusPill } from "@/components/status-pill";
 
 /* ============================== Types ============================== */
@@ -464,7 +464,7 @@ export function CampaignForm({
                   <Button
                     type="button" variant="secondary" size="sm" disabled={locked || coverBusy}
                     onClick={() => document.getElementById("cover-input")?.click()}
-                  >Ganti</Button>
+                  ><ImagePlus className="size-4" /> Ganti</Button>
                   <Button
                     type="button" variant="destructive" size="sm" disabled={locked || coverBusy}
                     onClick={() => {
@@ -472,7 +472,7 @@ export function CampaignForm({
                       setCoverMediaId(null);
                       setCoverRemoved(true);
                     }}
-                  >Hapus</Button>
+                  ><Trash2 className="size-4" /> Hapus</Button>
                 </div>
               </div>
             ) : (

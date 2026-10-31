@@ -16,6 +16,18 @@ export function fmtDate(iso: string | null | undefined): string {
   return new Date(iso).toLocaleDateString("id-ID", { dateStyle: "medium" });
 }
 
+/** ISO -> "Kamis, 29 Oktober 2026" */
+export function fmtDateLong(iso: string | null | undefined): string {
+  if (!iso) return "-";
+  return new Date(iso).toLocaleDateString("id-ID", { dateStyle: "full" });
+}
+
+/** ISO -> "01.00" */
+export function fmtTime(iso: string | null | undefined): string {
+  if (!iso) return "-";
+  return new Date(iso).toLocaleTimeString("id-ID", { timeStyle: "short" });
+}
+
 /** "2026-09-17" (input date) -> "17 Sep 2026" */
 export function fmtDateInput(s?: string | null): string {
   if (!s) return "";

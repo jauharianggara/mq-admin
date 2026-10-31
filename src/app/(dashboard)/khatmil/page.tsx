@@ -4,9 +4,9 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiGetPage, ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
-import { Download, Pencil, Plus, RefreshCw, Ban } from "lucide-react";
-import Link from "next/link";
+import { Download, Ellipsis, Pencil, Plus, RefreshCw, Ban } from "lucide-react";
 import { toast } from "sonner";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import {
   Table,
   TableBody,
@@ -23,6 +23,10 @@ import {
   TableSkeleton,
   EmptyRow,
   Pager,
+  RowNo,
+  AksiCell,
+  NomorChip,
+  TombolAksi,
 } from "@/components/data-table";
 import { useAdminList } from "@/hooks/use-admin-list";
 import { fmtDateInput } from "@/lib/format";
@@ -37,7 +41,7 @@ const STATUS_TABS = [
   { v: "DRAFT", label: "Draf" },
 ];
 
-const COLS = 8;
+const COLS = 9;
 
 const inisial = (nama: string) =>
   nama
@@ -313,13 +317,14 @@ export default function KhatmilPage() {
           <TableHeader>
             <TableRow>
               <Head label="No." className="w-12 text-center" />
+              <Head label="Aksi" />
+              <SortHead label="Status" col="status" sort={list.sort} order={list.order} onSort={list.toggleSort} className="text-center" />
+              <Head label="Nomor" />
               <Head label="Nama Khatmil" />
               <Head label="Mode" className="text-center" />
-              <SortHead label="Status" col="status" sort={list.sort} order={list.order} onSort={list.toggleSort} className="text-center" />
               <SortHead label="Peserta" col="participants" sort={list.sort} order={list.order} onSort={list.toggleSort} className="text-center" />
               <Head label="Juz Selesai per Kelompok" />
               <SortHead label="Progress" col="progress" sort={list.sort} order={list.order} onSort={list.toggleSort} />
-              <Head label="Aksi" className="text-right" />
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -331,8 +336,51 @@ export default function KhatmilPage() {
               items.map((c, i) => {
                               const bisaTulis = c.status !== "COMPLETED" && c.status !== "CANCELLED";
                 return (
-                  <TableRow key={c.id} className="hover:bg-muted/40">
-                    <TableCell className="text-center text-muted-foreground">{(list.page - 1) * 20 + i + 1}</TableCell>
+                  <TableRow key={c.id} className="row-accent hover:bg-muted/40">
+                    <RowNo i={i} page={list.page} perPage={20} />
+                    <AksiCell>
+                      <div className="flex items-center gap-1">
+                        <TombolAksi href={`/khatmil/${c.id}`} title={`Detail ${c.name}`} />
+                        {(bisaTulis || c.status === "ACTIVE" || c.status === "SCHEDULED") && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger
+                              render={
+                                <Button
+                                  size="icon-xs"
+                                  variant="ghost"
+                                  aria-label={`Aksi lain untuk ${c.name}`}
+                                  title="Aksi lain"
+                                >
+                                  <Ellipsis className="size-3.5" />
+                                </Button>
+                              }
+                            />
+                            <DropdownMenuContent align="end" className="w-44">
+                              {bisaTulis && (
+                                <DropdownMenuItem onClick={() => router.push(`/khatmil/${c.id}/edit`)}>
+                                  <Pencil className="size-3.5" /> Ubah
+                                </DropdownMenuItem>
+                              )}
+                              {(c.status === "ACTIVE" || c.status === "SCHEDULED") && (
+                                <DropdownMenuItem
+                                  variant="destructive"
+                                  onClick={() => {
+                                    if (confirm(`Batalkan campaign "${c.name}"? Tindakan ini permanen.`))
+                                      patchCampaign(c, { status: "CANCELLED" }, "Campaign dibatalkan").then((ok) => ok && list.reload());
+                                  }}
+                                >
+                                  <Ban className="size-3.5" /> Batalkan
+                                </DropdownMenuItem>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
+                      </div>
+                    </AksiCell>
+                    <TableCell className="text-center">
+                      <StatusBadge status={c.status} />
+                    </TableCell>
+                    <NomorChip label={`#${c.id}`} title={`Nomor campaign #${c.id}`} />
                     <TableCell>
                       <div className="flex items-start gap-3">
                         <span className="flex size-9 shrink-0 items-center justify-center rounded-lg border bg-emerald-50 text-xs font-bold text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">
@@ -365,9 +413,6 @@ export default function KhatmilPage() {
                         {c.mode === "SEQUENTIAL" ? "Bergiliran" : "Paralel"}
                       </span>
                     </TableCell>
-                    <TableCell className="text-center">
-                      <StatusBadge status={c.status} />
-                    </TableCell>
                     <TableCell className="text-center text-sm font-semibold">{c.participants}</TableCell>
                     <TableCell>
                       <div className="max-w-56 space-y-0.5 text-[11px]">
@@ -397,33 +442,6 @@ export default function KhatmilPage() {
                         <span className={`text-xs font-semibold ${c.progress_pct >= 100 ? "text-emerald-700 dark:text-emerald-400" : ""}`}>
                           {c.progress_pct}%
                         </span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <Button size="xs" variant="outline" nativeButton={false} render={<Link href={`/khatmil/${c.id}`} />}>
-                          Detail
-                        </Button>
-                        {bisaTulis && (
-                          <Button size="icon-xs" variant="ghost" onClick={() => router.push(`/khatmil/${c.id}/edit`)} title="Edit campaign">
-                            <Pencil className="size-3.5" />
-                          </Button>
-                        )}
-                        {(c.status === "ACTIVE" || c.status === "SCHEDULED") && (
-                          <Button
-                            size="icon-xs"
-                            variant="ghost"
-                            className="text-destructive"
-                            title="Batalkan campaign"
-                            aria-label={`Batalkan ${c.name}`}
-                            onClick={() => {
-                              if (confirm(`Batalkan campaign "${c.name}"? Tindakan ini permanen.`))
-                                patchCampaign(c, { status: "CANCELLED" }, "Campaign dibatalkan").then((ok) => ok && list.reload());
-                            }}
-                          >
-                            <Ban className="size-3.5" />
-                          </Button>
-                        )}
                       </div>
                     </TableCell>
                   </TableRow>

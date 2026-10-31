@@ -11,6 +11,8 @@ import {
   TableSkeleton,
   EmptyRow,
   Pager,
+  RowNo,
+  NomorChip,
 } from "@/components/data-table";
 import { useAdminList } from "@/hooks/use-admin-list";
 import { fmtDateTime } from "@/lib/format";
@@ -35,7 +37,7 @@ interface AuditEntry {
   created_at: string;
 }
 
-const COLS = 7;
+const COLS = 9;
 
 export default function AuditPage() {
   const [q, setQ] = useState("");
@@ -86,6 +88,8 @@ export default function AuditPage() {
         <Table>
           <TableHeader>
             <TableRow>
+              <Head label="No." className="w-12" />
+              <Head label="Nomor" />
               <Head label="Waktu" />
               <Head label="Aktor" />
               <Head label="Modul" />
@@ -101,8 +105,10 @@ export default function AuditPage() {
             ) : items.length === 0 ? (
               <EmptyRow colSpan={COLS} message="Belum ada log audit." />
             ) : (
-              items.map((a) => (
-                <TableRow key={a.id}>
+              items.map((a, i) => (
+                <TableRow key={a.id} className="row-accent">
+                  <RowNo i={i} page={list.page} perPage={20} />
+                  <NomorChip label={`#${a.id}`} title={`Nomor log audit #${a.id}`} />
                   <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{fmtDateTime(a.created_at)}</TableCell>
                   <TableCell className="text-xs">
                     {a.actor_id ? (

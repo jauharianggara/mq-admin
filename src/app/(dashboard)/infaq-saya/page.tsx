@@ -29,6 +29,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { NomorChip, RowNo } from "@/components/data-table";
 
 interface MutasiTx {
   id: number;
@@ -175,6 +176,8 @@ export default function InfaqSayaPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-12 text-center">No</TableHead>
+                    <TableHead>Nomor</TableHead>
                     <TableHead>Waktu</TableHead>
                     <TableHead>Jenis</TableHead>
                     <TableHead className="text-right">Jumlah</TableHead>
@@ -182,8 +185,10 @@ export default function InfaqSayaPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {mutasi.map((t) => (
-                    <TableRow key={t.id}>
+                  {mutasi.map((t, i) => (
+                    <TableRow key={t.id} className="row-accent">
+                      <RowNo i={i} />
+                      <NomorChip label={`#${t.id}`} title={`Nomor mutasi #${t.id}`} />
                       <TableCell className="whitespace-nowrap text-sm">{fmtDateTime(t.created_at)}</TableCell>
                       <TableCell className="text-sm">
                         {t.tx_type === "EARNING" ? "Pembagian infaq" : t.tx_type === "PAYOUT" ? "Penarikan" : t.tx_type === "REFUND" ? "Pengembalian" : t.tx_type === "ADJUST" ? "Penyesuaian" : t.tx_type}

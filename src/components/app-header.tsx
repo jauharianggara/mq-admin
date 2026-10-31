@@ -29,7 +29,6 @@ const segmentLabels: Record<string, string> = {
   payouts: "Penarikan",
   payments: "Pembayaran",
   deposit: "Saldo",
-  reviews: "Review",
 };
 
 export function AppHeader() {

@@ -4,8 +4,9 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiGet, apiPatch } from "@/lib/api";
 import { UserAvatar } from "@/components/user-avatar";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
@@ -19,6 +20,10 @@ import {
   TableSkeleton,
   EmptyRow,
   Pager,
+  RowNo,
+  AksiCell,
+  NomorChip,
+  TombolAksi,
 } from "@/components/data-table";
 import { StatusPill } from "@/components/status-pill";
 import { useAdminList } from "@/hooks/use-admin-list";
@@ -44,7 +49,7 @@ interface AdminUser {
   city?: string | null;
 }
 
-const COLS = 8;
+const COLS = 9;
 
 export default function PenggunaPage() {
   const router = useRouter();
@@ -70,7 +75,7 @@ export default function PenggunaPage() {
     apiGet<{ total: number }>(`/admin/users-count${qs.size ? `?${qs.toString()}` : ""}`)
       .then((d) => setTotal(d.total))
       .catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [q, status, role]);
 
   async function changeStatus(id: number, newStatus: string) {
@@ -135,13 +140,14 @@ export default function PenggunaPage() {
           <TableHeader>
             <TableRow>
               <Head label="No." className="w-12" />
+              <Head label="Aksi" />
+              <SortHead label="Status" col="status" sort={list.sort} order={list.order} onSort={list.toggleSort} />
+              <Head label="Nomor" />
               <SortHead label="Nama" col="full_name" sort={list.sort} order={list.order} onSort={list.toggleSort} />
               <Head label="Kontak" />
               <Head label="Tipe" />
               <Head label="Role" />
-              <SortHead label="Status" col="status" sort={list.sort} order={list.order} onSort={list.toggleSort} />
               <SortHead label="Login Terakhir" col="last_login_at" sort={list.sort} order={list.order} onSort={list.toggleSort} />
-              <Head label="" className="text-right" />
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -151,7 +157,6 @@ export default function PenggunaPage() {
               <EmptyRow colSpan={COLS} message="Tidak ada pengguna sesuai filter." />
             ) : (
               list.items.map((u, i) => {
-                const no = (list.page - 1) * 20 + i + 1;
                 const detailHref = u.roles?.includes("USTADZ")
                   ? `/ustadz/${u.id}`
                   : u.roles?.includes("SANTRI")
@@ -160,10 +165,25 @@ export default function PenggunaPage() {
                 return (
                   <TableRow
                     key={u.id}
-                    className={detailHref ? "cursor-pointer hover:bg-muted/50" : ""}
+                    className={detailHref ? "row-accent cursor-pointer hover:bg-muted/50" : ""}
                     onClick={() => detailHref && router.push(detailHref)}
                   >
-                    <TableCell className="text-muted-foreground">{no}</TableCell>
+                    <RowNo i={i} page={list.page} perPage={20} />
+                    <AksiCell onClick={(e) => e.stopPropagation()}>
+                      {u.status === "PENDING_VERIFICATION" && (
+                        <TombolAksi label="Aktifkan" variant="default" onClick={() => changeStatus(u.id, "ACTIVE")} />
+                      )}
+                      {u.status === "ACTIVE" && (
+                        <TombolAksi label="Suspend" variant="destructive" onClick={() => changeStatus(u.id, "SUSPENDED")} />
+                      )}
+                      {u.status === "SUSPENDED" && (
+                        <TombolAksi label="Aktifkan" variant="default" onClick={() => changeStatus(u.id, "ACTIVE")} />
+                      )}
+                    </AksiCell>
+                    <TableCell>
+                      <StatusPill status={u.status} />
+                    </TableCell>
+                    <NomorChip label={`#${u.id}`} title={`Nomor pengguna #${u.id}`} />
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <UserAvatar photoUrl={u.photo_url} name={u.full_name} />
@@ -193,33 +213,19 @@ export default function PenggunaPage() {
                             {r} ×
                           </Badge>
                         ))}
-                        <Badge
+                        <Button
                           variant="outline"
-                          className="cursor-pointer border-dashed text-[10px] text-muted-foreground"
+                          size="xs"
+                          className="border-dashed text-muted-foreground"
                           onClick={() => changeRole(u.id, "add_role", "USTADZ")}
                           title="Tambah role USTADZ"
                         >
-                          + USTADZ
-                        </Badge>
+                          <Plus className="size-3" /> USTADZ
+                        </Button>
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      <StatusPill status={u.status} />
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
                       {fmtDateTime(u.last_login_at)}
-                    </TableCell>
-                    <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                      {u.status === "PENDING_VERIFICATION" && (
-                        <Button size="sm" variant="outline" onClick={() => changeStatus(u.id, "ACTIVE")}>
-                          Aktifkan
-                        </Button>
-                      )}
-                      {u.status === "ACTIVE" && (
-                        <Button size="sm" variant="outline" className="text-destructive" onClick={() => changeStatus(u.id, "SUSPENDED")}>
-                          Suspend
-                        </Button>
-                      )}
                     </TableCell>
                   </TableRow>
                 );

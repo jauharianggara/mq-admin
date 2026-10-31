@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Copy, RefreshCw } from "lucide-react";
 import { apiGetPage } from "@/lib/api";
@@ -18,6 +17,9 @@ import {
   TableSkeleton,
   EmptyRow,
   Pager,
+  RowNo,
+  AksiCell,
+  TombolAksi,
 } from "@/components/data-table";
 import { StatusPill } from "@/components/status-pill";
 import { useAdminList } from "@/hooks/use-admin-list";
@@ -287,15 +289,15 @@ export default function PaymentsPage() {
           <TableHeader>
             <TableRow>
               <Head label="No." className="w-12" />
-              <SortHead label="ID Invoice" col="id" sort={list.sort} order={list.order} onSort={list.toggleSort} />
+              <Head label="Aksi" />
+              <SortHead label="Status" col="status" sort={list.sort} order={list.order} onSort={list.toggleSort} />
+              <SortHead label="Nomor" col="id" sort={list.sort} order={list.order} onSort={list.toggleSort} />
               <Head label="Jenis" />
               <Head label="Untuk / Keterangan" />
               <SortHead label="Nominal" col="amount" sort={list.sort} order={list.order} onSort={list.toggleSort} className="text-right" />
               <Head label="Metode" />
-              <SortHead label="Status" col="status" sort={list.sort} order={list.order} onSort={list.toggleSort} />
               <SortHead label="Dibuat" col="created_at" sort={list.sort} order={list.order} onSort={list.toggleSort} />
               <SortHead label="Dibayar" col="paid_at" sort={list.sort} order={list.order} onSort={list.toggleSort} />
-              <Head label="Aksi" className="text-center" />
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -304,27 +306,47 @@ export default function PaymentsPage() {
             ) : items.length === 0 ? (
               <EmptyRow colSpan={10} message="Tidak ada pembayaran sesuai filter." />
             ) : (
-              items.map((p, i) => (
+              items.map((p, i) => {
+                const nomor = p.external_id || `#INV-${p.id}`;
+                return (
                 <TableRow
                   key={p.id}
                   className={p.subject_type === "ustadz_visit" ? "cursor-pointer hover:bg-muted/50" : "hover:bg-muted/50"}
                   onClick={() => p.subject_type === "ustadz_visit" && router.push(`/visits/${p.subject_id}`)}
                 >
-                  <TableCell className="text-muted-foreground">{(list.page - 1) * 50 + i + 1}</TableCell>
+                  <RowNo i={i} page={list.page} perPage={50} />
+                  <AksiCell>
+                    {p.subject_type === "ustadz_visit" ? (
+                      <TombolAksi href={`/visits/${p.subject_id}`} title={`Detail kunjungan #${p.subject_id}`} />
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    )}
+                  </AksiCell>
+                  <TableCell>
+                    <StatusPill status={p.status} />
+                    {p.status === "PENDING" && (
+                      <span className="motion-safe:animate-pulse ml-1.5 inline-block size-1.5 rounded-full bg-amber-500" />
+                    )}
+                  </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1.5">
-                      <span className="font-mono text-xs font-bold">#INV-{p.id}</span>
+                      <span
+                        className="inline-block max-w-40 truncate rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] font-medium text-muted-foreground"
+                        title={`${nomor}${p.external_id ? ` (invoice #${p.id})` : ""}`}
+                      >
+                        {nomor}
+                      </span>
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           navigator.clipboard
-                            .writeText(`#INV-${p.id}`)
-                            .then(() => toast.success("ID invoice disalin"))
+                            .writeText(nomor)
+                            .then(() => toast.success("Nomor transaksi disalin"))
                             .catch(() => toast.error("Gagal menyalin"));
                         }}
                         className="rounded p-0.5 text-muted-foreground transition hover:text-foreground"
-                        title={`Salin ID #INV-${p.id}`}
-                        aria-label={`Salin ID invoice ${p.id}`}
+                        title={`Salin ${nomor}`}
+                        aria-label={`Salin nomor transaksi ${nomor}`}
                       >
                         <Copy className="size-3" />
                       </button>
@@ -346,33 +368,13 @@ export default function PaymentsPage() {
                   <TableCell className="text-sm">
                     {p.channel === "DEPOSIT" ? "Saldo (deposit)" : p.channel ? `Xendit (${p.channel})` : "Xendit"}
                   </TableCell>
-                  <TableCell>
-                    <StatusPill status={p.status} />
-                    {p.status === "PENDING" && (
-                      <span className="motion-safe:animate-pulse ml-1.5 inline-block size-1.5 rounded-full bg-amber-500" />
-                    )}
-                  </TableCell>
                   <TableCell className="whitespace-nowrap text-sm text-muted-foreground">{fmtDateTime(p.created_at)}</TableCell>
                   <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
                     {p.paid_at ? fmtDateTime(p.paid_at) : "—"}
                   </TableCell>
-                  <TableCell className="text-center">
-                    {p.subject_type === "ustadz_visit" ? (
-                      <Button
-                        size="xs"
-                        variant="outline"
-                        nativeButton={false}
-                        render={<Link href={`/visits/${p.subject_id}`} />}
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        Detail
-                      </Button>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
                 </TableRow>
-              ))
+                );
+              })
             )}
           </TableBody>
         </Table>

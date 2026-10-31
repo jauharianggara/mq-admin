@@ -28,6 +28,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { NomorChip, RowNo } from "@/components/data-table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 
@@ -164,8 +165,9 @@ export default function NotifikasiClient() {
   // Pratinjau dampak: jumlah penerima utk kombinasi target saat ini (debounce 300ms).
   useEffect(() => {
     if (target === "user" && !Number(userId)) {
-      setPreview(null);
-      return;
+      // aturan react-hooks: setState sinkron dilarang di body effect
+      const raf = requestAnimationFrame(() => setPreview(null));
+      return () => cancelAnimationFrame(raf);
     }
     const t = setTimeout(async () => {
       try {
@@ -194,7 +196,9 @@ export default function NotifikasiClient() {
   }, []);
 
   useEffect(() => {
-    loadHistory();
+    // satu frame berikutnya — aturan react-hooks melarang setState sinkron di body effect
+    const raf = requestAnimationFrame(() => loadHistory());
+    return () => cancelAnimationFrame(raf);
   }, [loadHistory]);
 
   async function submit() {
@@ -352,6 +356,8 @@ export default function NotifikasiClient() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-12 text-center">No</TableHead>
+                  <TableHead>Nomor</TableHead>
                   <TableHead>Waktu</TableHead>
                   <TableHead>Oleh</TableHead>
                   <TableHead>Target</TableHead>
@@ -360,8 +366,10 @@ export default function NotifikasiClient() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {history.map((h) => (
-                  <TableRow key={h.id}>
+                {history.map((h, i) => (
+                  <TableRow key={h.id} className="row-accent">
+                    <RowNo i={i} />
+                    <NomorChip label={`#${h.id}`} title={`Nomor kirim #${h.id}`} />
                     <TableCell className="whitespace-nowrap">{timeAgo(h.created_at)}</TableCell>
                     <TableCell>{h.actor ?? "-"}</TableCell>
                     <TableCell>

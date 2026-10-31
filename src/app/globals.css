@@ -182,12 +182,154 @@
   }
 }
 
-/* Hover baris tabel modul kunjungan: garis aksen kiri. Dimatikan bila pengguna mengurangi gerakan. */
+/* ===== Animasi detail Khatmil (mockup rev 2) =====
+   Gelombang kartu 30 juz per kolom, cascade pill 30 juz hero, grow bar progres,
+   shimmer utk bar 100%. Mati otomatis saat prefers-reduced-motion (elemen tampil
+   statis penuh karena semua aturan di bawah hanya berlaku tanpa reduce). */
 @media (prefers-reduced-motion: no-preference) {
-  .visits-row {
+  @keyframes khatmil-juz-wave {
+    0% {
+      opacity: 0;
+      transform: translateY(28px) scale(0.92);
+    }
+    65% {
+      transform: translateY(-2px) scale(1.02);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+  @keyframes khatmil-pill-fill {
+    0% {
+      opacity: 0;
+      transform: scaleX(0.1);
+      background-color: var(--muted);
+    }
+    55% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 1;
+      transform: scaleX(1);
+    }
+  }
+  @keyframes khatmil-bar-grow {
+    from {
+      width: 0;
+    }
+    to {
+      width: var(--target-width, 100%);
+    }
+  }
+  @keyframes khatmil-shimmer {
+    0%,
+    100% {
+      opacity: 1;
+      filter: drop-shadow(0 0 2px rgb(16 185 129 / 0.3));
+    }
+    50% {
+      opacity: 0.88;
+      filter: drop-shadow(0 0 6px rgb(16 185 129 / 0.6));
+    }
+  }
+
+  /* Pill 30 juz hero: cascade isi kiri→kanan (40ms/pil) */
+  .khatmil-pill-seg {
+    opacity: 0;
+    transform-origin: left center;
+    animation: khatmil-pill-fill 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    animation-delay: var(--seg-delay, 0ms);
+  }
+
+  /* Kartu 30 juz: tersembunyi sampai section masuk viewport (observer di page),
+     lalu muncul bergelombang per kolom (175ms/kolom, index kolom via --col-index) */
+  .khatmil-juz-card {
+    opacity: 0;
+    transform: translateY(28px) scale(0.92);
+    will-change: transform, opacity;
+  }
+  .khatmil-grid-reveal .khatmil-juz-card {
+    animation: khatmil-juz-wave 0.72s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    animation-delay: calc((var(--col-index, 1) - 1) * 175ms);
+  }
+
+  /* Entrance section mockup: fade + naik 8px, fill both agar tak flash saat delay */
+  @keyframes khatmil-fade-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  .khatmil-entrance {
+    animation: khatmil-fade-in 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation-delay: var(--enter-delay, 0ms);
+  }
+
+  /* Bar progres: tumbuh dari 0 ke --target-width; varian lengkap (100%) + shimmer */
+  .khatmil-bar {
+    width: 0;
+    animation: khatmil-bar-grow 1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    animation-delay: var(--bar-delay, 0ms);
+  }
+  .khatmil-bar-lengkap {
+    animation:
+      khatmil-bar-grow 1s cubic-bezier(0.16, 1, 0.3, 1) forwards,
+      khatmil-shimmer 3s ease-in-out infinite;
+    animation-delay: var(--bar-delay, 0ms), 1.2s;
+  }
+}
+
+/* Cetak/PDF: bar & kartu tampil penuh tanpa animasi */
+@media print {
+  .khatmil-bar,
+  .khatmil-bar-lengkap {
+    width: var(--target-width, 100%) !important;
+    animation: none !important;
+  }
+  .khatmil-juz-card {
+    opacity: 1 !important;
+    transform: none !important;
+    animation: none !important;
+  }
+}
+
+/* Shimmer sweep (tombol utama & kartu gelap — mockup halaman Santri) — hanya tanpa reduce */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes shimmer-sweep {
+    0% {
+      transform: translateX(-150%) skewX(-20deg);
+    }
+    50%,
+    100% {
+      transform: translateX(250%) skewX(-20deg);
+    }
+  }
+  .shimmer-sweep {
+    animation: shimmer-sweep 5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .shimmer-sweep {
+    display: none;
+  }
+}
+
+/* Hover baris tabel modul kunjungan: garis aksen kiri. Dimatikan bila pengguna mengurangi gerakan.
+   Dipasang di td PERTAMA, bukan di <tr>: position: relative pada <tr> membuat
+   Chrome menggeser sel body satu kolom (header tak sejajar isi — bug 31 Okt).
+   .row-accent = alias generik utk tabel modul lain (mis. Santri). */
+@media (prefers-reduced-motion: no-preference) {
+  .visits-row > td:first-child,
+  .row-accent > td:first-child {
     position: relative;
   }
-  .visits-row::before {
+  .visits-row > td:first-child::before,
+  .row-accent > td:first-child::before {
     content: "";
     position: absolute;
     left: 0;
@@ -197,7 +339,8 @@
     background: transparent;
     transition: background-color 0.18s ease;
   }
-  .visits-row:hover::before {
+  .visits-row:hover > td:first-child::before,
+  .row-accent:hover > td:first-child::before {
     background: var(--primary);
   }
 }

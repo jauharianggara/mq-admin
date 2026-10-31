@@ -1,17 +1,28 @@
 "use client";
 
 import { ChevronLeft, ChevronRight, RefreshCw, Search } from "lucide-react";
+import Link from "next/link";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  Table,
-  TableBody,
   TableCell,
   TableHead as UiTableHead,
-  TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowLeftRight,
+  ArrowUp,
+  ArrowUpDown,
+  Ban,
+  Banknote,
+  CheckCircle2,
+  Eye,
+  Pencil,
+  XCircle,
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 /**
  * Kit halaman list admin — SEMUA halaman index WAJIB pakai komponen ini.
@@ -196,5 +207,129 @@ export function Pager({
         </Button>
       </div>
     </div>
+  );
+}
+
+// ===================== pola baku baris: No | Aksi | Status | Nomor =====================
+// (lihat PLAN_POLA_TABEL_BAKU_2026-10-31.md — ACC 31 Okt 2026)
+
+/** Sel "No" — nomor urut mono 2 digit, increment dan reset per halaman. */
+export function RowNo({
+  i,
+  page = 1,
+  perPage = 0,
+  className,
+}: {
+  /** indeks baris dalam halaman (0-based) */
+  i: number;
+  page?: number;
+  /** ukuran halaman; 0 = tanpa offset (daftar kecil tanpa paginasi) */
+  perPage?: number;
+  className?: string;
+}) {
+  const n = (perPage > 0 ? (page - 1) * perPage : 0) + i + 1;
+  return (
+    <TableCell className={`text-center font-mono text-muted-foreground ${className ?? ""}`}>
+      {String(n).padStart(2, "0")}
+    </TableCell>
+  );
+}
+
+/** Sel "Nomor" — chip mono identitas entri (#ID / external_id / rujukan). */
+export function NomorChip({
+  label,
+  title,
+  className,
+}: {
+  label: string | number;
+  title?: string;
+  className?: string;
+}) {
+  return (
+    <TableCell className={className}>
+      <span
+        title={title}
+        className="inline-block rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] font-medium text-muted-foreground"
+      >
+        {label}
+      </span>
+    </TableCell>
+  );
+}
+
+/** Sel "Aksi" — selalu di kolom kiri; klik tombol tidak memicu klik baris. */
+export function AksiCell({
+  children,
+  className,
+  onClick,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  /** ekstra: cegah klik baris saat menyentuh sel (utk tombol status dsb.) */
+  onClick?: (e: React.MouseEvent<HTMLTableCellElement>) => void;
+}) {
+  return (
+    <TableCell className={`whitespace-nowrap ${className ?? ""}`} onClick={onClick}>
+      {children}
+    </TableCell>
+  );
+}
+
+/** Ikon default per label TombolAksi — dipakai bila pemanggil tidak mengirim `icon` eksplisit. */
+const ICON_BY_LABEL: Record<string, LucideIcon> = {
+  Detail: Eye,
+  ACC: CheckCircle2,
+  Tolak: XCircle,
+  Aktifkan: CheckCircle2,
+  Nonaktifkan: Ban,
+  Suspend: Ban,
+  "Sudah ditransfer": Banknote,
+  Mutasi: ArrowLeftRight,
+  "+ Koreksi": Pencil,
+};
+
+/** Tombol aksi baku dalam tabel (PLAN_STANDARD_TOMBOL_TABEL_2026-10-31, ACC 31 Okt):
+ *  selalu size xs, shape mengikuti Button, SELALU berikon; stopPropagation bawaan agar klik baris tidak dobel.
+ *  variant: outline = detail/proses · default = ACC/aktifkan · destructive = tolak/suspend. */
+export function TombolAksi({
+  label = "Detail",
+  variant = "outline",
+  icon,
+  href,
+  onClick,
+  title,
+  disabled,
+}: {
+  label?: string;
+  variant?: "outline" | "default" | "destructive" | "ghost";
+  icon?: React.ReactNode;
+  /** render sebagai <Link> — untuk aksi buka detail */
+  href?: string;
+  onClick?: (e: React.MouseEvent) => void;
+  title?: string;
+  disabled?: boolean;
+}) {
+  const IkonBawaan = icon === undefined ? ICON_BY_LABEL[label] : undefined;
+  return (
+    <Button
+      size="xs"
+      variant={variant}
+      disabled={disabled}
+      title={title}
+      className={cn(
+        variant === "destructive" &&
+          "border border-destructive/45 bg-transparent text-destructive hover:bg-destructive/10 dark:bg-transparent",
+      )}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick?.(e);
+      }}
+      {...(href
+        ? { nativeButton: false, render: <Link href={href} onClick={(e) => e.stopPropagation()} /> }
+        : {})}
+    >
+      {icon ?? (IkonBawaan ? <IkonBawaan className="size-3" /> : null)}
+      {label}
+    </Button>
   );
 }

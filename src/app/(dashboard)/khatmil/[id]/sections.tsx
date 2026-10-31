@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import Link from "next/link";
-import { Check, ChevronLeft, ChevronRight, Search, X } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Pencil, Plus, Printer, Search, Share2, UserCog, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -130,14 +130,14 @@ export function SessionHero({
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <Button size="sm" variant="outline" onClick={onBagikan}>
-            Bagikan
+            <Share2 className="size-4" /> Bagikan
           </Button>
           <Button size="sm" variant="outline" onClick={onCetak}>
-            Cetak Laporan
+            <Printer className="size-4" /> Cetak Laporan
           </Button>
           {canWrite && (
             <Button size="sm" onClick={() => (location.href = `/khatmil/${detail.id}/edit`)}>
-              Ubah Sesi
+              <Pencil className="size-4" /> Ubah Sesi
             </Button>
           )}
         </div>
@@ -190,7 +190,10 @@ export function HeroProgressAndKpis({
   const terbaikPembina = terbaik?.pembina ?? terbaik?.pending_pembina ?? "—";
 
   return (
-    <section className="grid grid-cols-1 gap-5 lg:grid-cols-12">
+    <section
+      className="khatmil-entrance grid grid-cols-1 gap-5 lg:grid-cols-12"
+      style={{ "--enter-delay": "50ms" } as CSSProperties}
+    >
       {/* Hero progres */}
       <div className="flex flex-col justify-between rounded-xl border bg-card p-5 shadow-sm sm:p-6 lg:col-span-8">
         <div>
@@ -233,7 +236,8 @@ export function HeroProgressAndKpis({
                 <span
                   key={i}
                   title={`Juz ${i + 1}: ${s === "selesai" ? "Selesai" : s === "aktif" ? "Dipegang" : "Kosong"}`}
-                  className={`h-2 rounded-full transition-colors ${
+                  style={{ "--seg-delay": `${(i + 1) * 40}ms` } as CSSProperties}
+                  className={`khatmil-pill-seg h-2 rounded-full ${
                     s === "selesai"
                       ? "bg-emerald-500"
                       : s === "aktif"
@@ -332,13 +336,11 @@ function JuzKartu({
   groupNo,
   sel,
   onJuz,
-  delay,
 }: {
   slot: JuzSlot;
   groupNo: number;
   sel: JuzSel | null;
   onJuz: (s: JuzSel) => void;
-  delay: number;
 }) {
   const dipilih = sel && sel.g === groupNo && sel.j === slot.juz;
   const selesai = slot.status === "COMPLETED";
@@ -348,8 +350,8 @@ function JuzKartu({
       <button
         onClick={() => onJuz({ g: groupNo, j: slot.juz })}
         title="Juz kosong — klik untuk melihat detail"
-        className="rounded-lg border border-dashed bg-muted/40 p-2.5 text-center transition hover:border-primary/40 hover:bg-muted/70 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95"
-        style={{ animationDelay: `${delay}ms` }}
+        className="khatmil-juz-card rounded-lg border border-dashed bg-muted/40 p-2.5 text-center transition-all hover:border-primary/40 hover:bg-muted/70 hover:-translate-y-[3px] hover:scale-[1.03]"
+        style={{ "--col-index": ((slot.juz - 1) % 10) + 1 } as CSSProperties}
       >
         <span className="block text-xs font-bold text-muted-foreground">Juz {slot.juz}</span>
         <span
@@ -366,14 +368,14 @@ function JuzKartu({
     <button
       onClick={() => onJuz({ g: groupNo, j: slot.juz })}
       title={`Juz ${slot.juz}: ${slot.owner_name ?? "?"}${selesai ? " — selesai" : slot.progress_pct != null ? ` — ${slot.progress_pct}%` : ""}`}
-      className={`rounded-lg border p-2.5 text-center transition hover:shadow-md motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 ${
+      className={`rounded-lg border p-2.5 text-center transition-all hover:shadow-md hover:-translate-y-[3px] hover:scale-[1.03] khatmil-juz-card ${
         dipilih ? "ring-2 ring-primary" : ""
       } ${
         selesai
           ? "border-emerald-200 bg-emerald-50/60 dark:border-emerald-800 dark:bg-emerald-950/30"
           : "border-amber-300 bg-amber-50/60 dark:border-amber-800 dark:bg-amber-950/30"
       }`}
-      style={{ animationDelay: `${delay}ms` }}
+      style={{ "--col-index": ((slot.juz - 1) % 10) + 1 } as CSSProperties}
     >
       <span className="block text-xs font-bold">Juz {slot.juz}</span>
       <span
@@ -424,8 +426,15 @@ function KartuRingkasKelompok({
       </p>
       <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-muted">
         <div
-          className={`h-1.5 rounded-full ${done >= 30 ? "bg-emerald-500" : done > 0 ? "bg-amber-400" : "bg-muted-foreground/30"}`}
-          style={{ width: `${(done / 30) * 100}%` }}
+          className={`h-1.5 rounded-full ${done >= 30 ? "khatmil-bar-lengkap" : "khatmil-bar"} ${
+            done >= 30 ? "bg-emerald-500" : done > 0 ? "bg-amber-400" : "bg-muted-foreground/30"
+          }`}
+          style={
+            {
+              "--target-width": `${(done / 30) * 100}%`,
+              "--bar-delay": `${delay + 250}ms`,
+            } as CSSProperties
+          }
         />
       </div>
       <div className="mt-2 flex items-center justify-between text-[11px] text-muted-foreground">
@@ -441,10 +450,12 @@ function BarBandingKelompok({ pg, done }: { pg: PetaGroup; done: number }) {
   return (
     <div className="flex items-center gap-3">
       <span className="w-24 shrink-0 text-sm font-semibold">Kelompok {pg.group_no}</span>
-      <div className="h-3 flex-1 rounded-full bg-muted">
+      <div className="h-3 flex-1 overflow-hidden rounded-full bg-muted">
         <div
-          className={`h-3 rounded-full ${done >= 30 ? "bg-emerald-500" : done > 0 ? "bg-amber-400" : "bg-muted-foreground/30"}`}
-          style={{ width: `${(done / 30) * 100}%` }}
+          className={`h-3 rounded-full ${done >= 30 ? "khatmil-bar-lengkap" : "khatmil-bar"} ${
+            done >= 30 ? "bg-emerald-500" : done > 0 ? "bg-amber-400" : "bg-muted-foreground/30"
+          }`}
+          style={{ "--target-width": `${(done / 30) * 100}%` } as CSSProperties}
         />
       </div>
       <span className="w-44 shrink-0 text-right text-xs text-muted-foreground">
@@ -481,6 +492,29 @@ export function JuzMatrixSection({
   const [juzFilter, setJuzFilter] = useState<"semua" | "diambil" | "tersedia">("semua");
   const [hlmKel, setHlmKel] = useState(0);
 
+  // Wave reveal kartu 30 juz: terpicu sekali saat CONTAINER GRID masuk viewport
+  // (bukan section penuh — kalau section, wave selesai sebelum pengguna sampai
+  // menggulir ke grid). Node dipantau lewat state ref agar observer menempel
+  // ulang saat grid unmount/mount (pindah mode Detail ↔ Bandingkan).
+  // Reduced-motion tidak perlu cabang khusus: aturan animasi CSS hanya
+  // berlaku tanpa reduce, jadi tanpa kelas reveal kartu tampil statis.
+  const [gridEl, setGridEl] = useState<HTMLDivElement | null>(null);
+  const [gridReveal, setGridReveal] = useState(false);
+  useEffect(() => {
+    if (!gridEl || gridReveal) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          setGridReveal(true);
+          io.disconnect();
+        }
+      },
+      { rootMargin: "0px 0px -60px 0px", threshold: 0.15 },
+    );
+    io.observe(gridEl);
+    return () => io.disconnect();
+  }, [gridEl, gridReveal]);
+
   const kelPageCount = Math.max(1, Math.ceil(petaGroups.length / GROUP_PAGE_SIZE));
   const kelSafe = Math.min(hlmKel, kelPageCount - 1);
   const kelTampil = petaGroups.slice(kelSafe * GROUP_PAGE_SIZE, kelSafe * GROUP_PAGE_SIZE + GROUP_PAGE_SIZE);
@@ -504,7 +538,10 @@ export function JuzMatrixSection({
   });
 
   return (
-    <section className="space-y-5 rounded-xl border bg-card p-5 shadow-sm sm:p-6">
+    <section
+      className="khatmil-entrance space-y-5 rounded-xl border bg-card p-5 shadow-sm sm:p-6"
+      style={{ "--enter-delay": "100ms" } as CSSProperties}
+    >
       {/* Header & switcher */}
       <div className="flex flex-col justify-between gap-3 border-b pb-4 sm:flex-row sm:items-center">
         <div>
@@ -542,14 +579,15 @@ export function JuzMatrixSection({
             </div>
           </div>
         )}
-        <button
+        <Button
           onClick={onBelumTersedia}
           title="Butuh dukungan backend"
           disabled
-          className="inline-flex items-center gap-1 rounded-lg border border-dashed border-primary/60 bg-primary/5 px-3 py-1 text-xs font-semibold text-primary transition-colors disabled:opacity-50"
+          variant="outline"
+          size="sm"
         >
-          <span className="text-sm leading-none">+</span> Tambah Kelompok
-        </button>
+          <Plus className="size-4" /> Tambah Kelompok
+        </Button>
       </div>
 
       {mode === "bandingkan" && multi ? (
@@ -638,6 +676,7 @@ export function JuzMatrixSection({
                 </div>
                 {canWrite && (
                   <Button size="sm" variant="outline" onClick={() => onAssign(aktif.group_no)}>
+                    <UserCog className="size-4" />
                     {aktif.pembina || aktif.pending_pembina ? "Ganti Pembina" : "Tetapkan Pembina"}
                   </Button>
                 )}
@@ -647,15 +686,17 @@ export function JuzMatrixSection({
 
           {/* Kartu 30 juz */}
           {aktif && (
-            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-10">
-              {slotsTampil.map((s, i) => (
+            <div
+              ref={setGridEl}
+              className={`grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-10 ${gridReveal ? "khatmil-grid-reveal" : ""}`}
+            >
+              {slotsTampil.map((s) => (
                 <JuzKartu
                   key={s.juz}
                   slot={s}
                   groupNo={aktif.group_no}
                   sel={sel}
                   onJuz={onJuz}
-                  delay={i * 30}
                 />
               ))}
             </div>
@@ -761,7 +802,10 @@ export function PesertaSection({
   const rows = filtered.slice(pageSafe * PARTICIPANT_PAGE_SIZE, pageSafe * PARTICIPANT_PAGE_SIZE + PARTICIPANT_PAGE_SIZE);
 
   return (
-    <section className="overflow-hidden rounded-xl border bg-card shadow-sm">
+    <section
+      className="khatmil-entrance overflow-hidden rounded-xl border bg-card shadow-sm"
+      style={{ "--enter-delay": "150ms" } as CSSProperties}
+    >
       <div className="flex flex-col justify-between gap-4 border-b p-5 sm:flex-row sm:items-center">
         <div>
           <h2 className="text-base font-bold tracking-tight sm:text-lg">Peserta &amp; Peringkat Bacaan</h2>
@@ -825,8 +869,9 @@ export function PesertaSection({
                 </TableCell>
               </TableRow>
             ) : (
-              rows.map(({ p, rank }) => {
+              rows.map(({ p, rank }, i) => {
                 const gno = groupByName[p.full_name];
+                const pctBaca = p.juz_active[0]?.progress_pct ?? 0;
                 return (
                   <TableRow key={p.user_id}>
                     <TableCell className="text-center font-medium text-muted-foreground">{rank}</TableCell>
@@ -871,10 +916,15 @@ export function PesertaSection({
                       )}
                     </TableCell>
                     <TableCell>
-                      <div className="w-28 rounded-full bg-slate-100">
+                      <div className="w-28 overflow-hidden rounded-full bg-slate-100">
                         <div
-                          className="rounded-full bg-emerald-500"
-                          style={{ width: `${p.juz_active[0]?.progress_pct ?? 0}%`, height: "6px" }}
+                          className={`h-1.5 rounded-full bg-emerald-500 ${pctBaca >= 100 ? "khatmil-bar-lengkap" : "khatmil-bar"}`}
+                          style={
+                            {
+                              "--target-width": `${pctBaca}%`,
+                              "--bar-delay": `${200 + i * 60}ms`,
+                            } as CSSProperties
+                          }
                         />
                       </div>
                     </TableCell>
@@ -898,13 +948,13 @@ export function PesertaSection({
         </span>
         <div className="inline-flex items-center gap-1.5">
           <Button variant="outline" size="sm" disabled={pageSafe === 0} onClick={() => setPage(pageSafe - 1)}>
-            Sebelumnya
+            <ChevronLeft className="mr-1 size-4" /> Sebelumnya
           </Button>
           <span className="px-2 font-semibold text-foreground">
             {pageSafe + 1} / {pageCount}
           </span>
           <Button variant="outline" size="sm" disabled={pageSafe >= pageCount - 1} onClick={() => setPage(pageSafe + 1)}>
-            Berikutnya
+            Berikutnya <ChevronRight className="size-4" />
           </Button>
         </div>
       </div>
@@ -929,7 +979,10 @@ export function ActivitySpecSection({
 }) {
   const terbaru = activity.slice(0, ACTIVITY_VISIBLE);
   return (
-    <div className="grid grid-cols-1 gap-5 lg:grid-cols-12">
+    <div
+      className="khatmil-entrance grid grid-cols-1 gap-5 lg:grid-cols-12"
+      style={{ "--enter-delay": "200ms" } as CSSProperties}
+    >
       {/* Kiri: aktivitas */}
       <div className="rounded-xl border bg-card p-5 shadow-sm lg:col-span-7">
         <div className="flex items-center justify-between border-b pb-3">

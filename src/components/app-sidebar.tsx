@@ -11,12 +11,10 @@ import {
   BookOpenText,
   Settings,
   ScrollText,
-  Sparkles,
   Bike,
   Wallet,
   Landmark,
   Coins,
-  Star,
   BellRing,
   HandCoins,
 } from "lucide-react";
@@ -50,7 +48,6 @@ const layananNav = [
   { label: "Pembayaran", icon: Wallet, href: "/payments" },
   { label: "Penarikan", icon: Landmark, href: "/payouts" },
   { label: "Saldo", icon: Coins, href: "/deposit" },
-  { label: "Review", icon: Star, href: "/reviews" },
 ];;
 
 const sistemNav = [

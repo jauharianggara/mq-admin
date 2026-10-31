@@ -67,8 +67,9 @@ export function useAdminList<T>(
 
   useEffect(() => {
     cursors.current = [null];
-    load(null, 1);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // satu frame berikutnya — aturan react-hooks melarang setState sinkron di body effect
+    const raf = requestAnimationFrame(() => load(null, 1));
+    return () => cancelAnimationFrame(raf);
   }, [load]);
 
   const toggleSort = useCallback(
@@ -85,6 +86,13 @@ export function useAdminList<T>(
     },
     [sort, order],
   );
+
+  /** Set sort programatis (dropdown sort, bukan klik header); null = kembali mode cursor default. */
+  const setSortKey = useCallback((col: string | null, ord: "asc" | "desc" = "asc") => {
+    setSort(col);
+    setOrder(ord);
+    setPage(1);
+  }, []);
 
   const goNext = useCallback(() => {
     if (sort) {
@@ -115,6 +123,7 @@ export function useAdminList<T>(
     sort,
     order,
     toggleSort,
+    setSortKey,
     page,
     hasMore,
     goNext,

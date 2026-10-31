@@ -7,7 +7,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { Coins } from "lucide-react";
+import { CalendarDays, Coins } from "lucide-react";
 import { apiGet, ApiError } from "@/lib/api";
 import { rp } from "@/lib/format";
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { AksiCell, NomorChip, RowNo, TombolAksi } from "@/components/data-table";
 
 interface LaporanRow {
   user_id: number;
@@ -67,7 +68,9 @@ export default function RekapInfaqPage() {
   }, [bulan]);
 
   useEffect(() => {
-    load();
+    // satu frame berikutnya — aturan react-hooks melarang setState sinkron di body effect
+    const raf = requestAnimationFrame(() => load());
+    return () => cancelAnimationFrame(raf);
   }, [load]);
 
   const totalSaldo = (rows ?? []).reduce((a, r) => a + r.saldo, 0);
@@ -108,16 +111,18 @@ export default function RekapInfaqPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Kunjungan</TableHead>
+                      <TableHead className="w-12 text-center">No</TableHead>
+                      <TableHead>Nomor Kunjungan</TableHead>
                       <TableHead>Tanggal bayar</TableHead>
                       <TableHead className="text-right">Total bayar</TableHead>
                       <TableHead className="text-right">Porsi pengelola</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {pengelola.rows.map((r) => (
-                      <TableRow key={r.visit_id}>
-                        <TableCell>#{r.visit_id}</TableCell>
+                    {pengelola.rows.map((r, i) => (
+                      <TableRow key={r.visit_id} className="row-accent">
+                        <RowNo i={i} />
+                        <NomorChip label={`#${r.visit_id}`} title={`Nomor kunjungan #${r.visit_id}`} />
                         <TableCell className="whitespace-nowrap">{r.paid_at ?? "—"}</TableCell>
                         <TableCell className="text-right tabular-nums">{rp(r.total_bayar)}</TableCell>
                         <TableCell className="text-right font-semibold tabular-nums text-green-700">{rp(r.pengelola)}</TableCell>
@@ -144,7 +149,7 @@ export default function RekapInfaqPage() {
             />
             {bulan && (
               <Button variant="ghost" size="sm" onClick={() => setBulan("")}>
-                Semua
+                <CalendarDays className="size-4" /> Semua
               </Button>
             )}
           </div>
@@ -159,17 +164,24 @@ export default function RekapInfaqPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-12 text-center">No</TableHead>
+                    <TableHead>Aksi</TableHead>
+                    <TableHead>Nomor</TableHead>
                     <TableHead>Nama</TableHead>
                     <TableHead className="text-right">Saldo kini</TableHead>
                     <TableHead className="text-right">Diterima{bulan ? ` (${bulan})` : " (total)"}</TableHead>
                     <TableHead className="text-right">Ditarik{bulan ? ` (${bulan})` : " (total)"}</TableHead>
                     <TableHead className="text-right">Sedang diajukan</TableHead>
-                    <TableHead />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {rows.map((r) => (
-                    <TableRow key={r.user_id}>
+                  {rows.map((r, i) => (
+                    <TableRow key={r.user_id} className="row-accent">
+                      <RowNo i={i} />
+                      <AksiCell>
+                        <TombolAksi label="Mutasi" href={`/penerima/${r.user_id}`} title={`Mutasi ${r.nama ?? "penerima"}`} />
+                      </AksiCell>
+                      <NomorChip label={`#${r.user_id}`} title={`Nomor penerima #${r.user_id}`} />
                       <TableCell className="font-medium">
                         <Link href={`/penerima/${r.user_id}`} className="hover:underline">
                           {r.nama ?? "(tanpa nama)"}
@@ -182,17 +194,12 @@ export default function RekapInfaqPage() {
                       <TableCell className="text-right tabular-nums">
                         {r.pending_tarik > 0 ? rp(r.pending_tarik) : "—"}
                       </TableCell>
-                      <TableCell className="text-right">
-                        <Button size="sm" variant="ghost" render={<Link href={`/penerima/${r.user_id}`} />}>
-                          Lihat mutasi →
-                        </Button>
-                      </TableCell>
                     </TableRow>
                   ))}
                   <TableRow className="font-semibold">
-                    <TableCell>Total saldo</TableCell>
+                    <TableCell colSpan={4}>Total saldo</TableCell>
                     <TableCell className="text-right tabular-nums">{rp(totalSaldo)}</TableCell>
-                    <TableCell colSpan={4} />
+                    <TableCell colSpan={3} />
                   </TableRow>
                 </TableBody>
               </Table>

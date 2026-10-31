@@ -25,6 +25,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { NomorChip, RowNo } from "@/components/data-table";
 
 export default function DetailPenerimaPage() {
   const params = useParams<{ id: string }>();
@@ -109,6 +110,8 @@ export default function DetailPenerimaPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-12 text-center">No</TableHead>
+                    <TableHead>Nomor</TableHead>
                     <TableHead>Waktu</TableHead>
                     <TableHead>Jenis</TableHead>
                     <TableHead className="text-right">Jumlah</TableHead>
@@ -116,8 +119,10 @@ export default function DetailPenerimaPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {items.map((t: MutasiTx) => (
-                    <TableRow key={t.id}>
+                  {items.map((t: MutasiTx, i: number) => (
+                    <TableRow key={t.id} className="row-accent">
+                      <RowNo i={i} />
+                      <NomorChip label={`#${t.id}`} title={`Nomor mutasi #${t.id}`} />
                       <TableCell className="whitespace-nowrap text-sm">{fmtDateTime(t.created_at)}</TableCell>
                       <TableCell>
                         <Badge variant={t.tx_type === "PAYOUT" ? "destructive" : "secondary"}>

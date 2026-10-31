@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowLeft, Plus, RefreshCw, ShieldCheck } from "lucide-react";
+import { ArrowLeft, Download, History, Plus, RefreshCw, Send, ShieldCheck, X } from "lucide-react";
 import { apiGet, apiGetPage, apiPost, ApiError } from "@/lib/api";
 import { AnimatedRupiah } from "@/components/animated-rupiah";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,10 @@ import {
   TableSkeleton,
   EmptyRow,
   Pager,
+  RowNo,
+  AksiCell,
+  NomorChip,
+  TombolAksi,
 } from "@/components/data-table";
 import { StatusPill, statusLabel } from "@/components/status-pill";
 import { useAdminList } from "@/hooks/use-admin-list";
@@ -220,7 +224,7 @@ export default function DepositPage() {
               </TabsList>
             </Tabs>
             <Button variant="outline" size="sm" onClick={() => setTab("ADJ")}>
-              Riwayat Penyesuaian
+              <History className="size-4" /> Riwayat Penyesuaian
             </Button>
           </div>
         }
@@ -318,23 +322,28 @@ export default function DepositPage() {
               <TableHeader>
                 <TableRow>
                   <Head label="No." className="w-10" />
+                  <Head label="Status" />
+                  <Head label="Nomor" />
                   <Head label="Pemilik Saldo" />
                   <Head label="Nominal" className="text-right" />
                   <Head label="Alasan" />
-                  <Head label="Status" />
                   <Head label="Diajukan" />
                   <Head label="Diproses" />
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {adjList.loading && adjList.items.length === 0 ? (
-                  <TableSkeleton rows={4} cols={7} />
+                  <TableSkeleton rows={4} cols={8} />
                 ) : adjList.items.length === 0 ? (
-                  <EmptyRow colSpan={7} message="Belum ada penyesuaian." />
+                  <EmptyRow colSpan={8} message="Belum ada penyesuaian." />
                 ) : (
                   adjList.items.map((a, i) => (
-                    <TableRow key={a.id}>
-                      <TableCell className="text-muted-foreground">{(adjList.page - 1) * 50 + i + 1}</TableCell>
+                    <TableRow key={a.id} className="row-accent">
+                      <RowNo i={i} page={adjList.page} perPage={50} />
+                      <TableCell>
+                        <StatusPill status={a.status} />
+                      </TableCell>
+                      <NomorChip label={`#${a.id}`} title={`Nomor penyesuaian #${a.id}`} />
                       <TableCell className="font-medium">{a.user_name}</TableCell>
                       <TableCell className={`whitespace-nowrap text-right font-semibold ${a.amount > 0 ? "text-green-600" : "text-red-600"}`}>
                         {a.amount > 0 ? "+" : ""}
@@ -342,9 +351,6 @@ export default function DepositPage() {
                       </TableCell>
                       <TableCell className="max-w-64">
                         <span className="line-clamp-2 text-sm">{a.reason}</span>
-                      </TableCell>
-                      <TableCell>
-                        <StatusPill status={a.status} />
                       </TableCell>
                       <TableCell className="whitespace-nowrap text-sm text-muted-foreground">{fmtDateTime(a.created_at)}</TableCell>
                       <TableCell className="whitespace-nowrap text-sm text-muted-foreground">{fmtDateTime(a.handled_at)}</TableCell>
@@ -379,10 +385,10 @@ export default function DepositPage() {
               <TableHeader>
                 <TableRow>
                   <Head label="No." className="w-12" />
+                  <Head label="Rujukan" />
                   <Head label="Jenis" />
                   <Head label="Nominal" className="text-right" />
                   <Head label="Saldo setelah" className="text-right" />
-                  <Head label="Rujukan" />
                   <Head label="Waktu" />
                 </TableRow>
               </TableHeader>
@@ -395,17 +401,18 @@ export default function DepositPage() {
                   txs.map((t, i) => {
                     const credit = txCredit[t.tx_type];
                     return (
-                      <TableRow key={t.id}>
-                        <TableCell className="text-muted-foreground">{i + 1}</TableCell>
+                      <TableRow key={t.id} className="row-accent">
+                        <RowNo i={i} />
+                        <NomorChip
+                          label={t.subject_type ? `${t.subject_type} #${t.subject_id}` : "-"}
+                          title="Rujukan transaksi"
+                        />
                         <TableCell className="text-sm">{txLabel[t.tx_type] ?? t.tx_type}</TableCell>
                         <TableCell className={`whitespace-nowrap text-right font-semibold ${credit ? "text-green-600" : "text-red-600"}`}>
                           {credit ? "+" : "-"}
                           {rp(t.amount)}
                         </TableCell>
                         <TableCell className="whitespace-nowrap text-right">{rp(t.balance_after)}</TableCell>
-                        <TableCell className="text-xs text-muted-foreground">
-                          {t.subject_type ? `${t.subject_type} #${t.subject_id}` : "-"}
-                        </TableCell>
                         <TableCell className="whitespace-nowrap text-sm text-muted-foreground">{fmtDateTime(t.created_at)}</TableCell>
                       </TableRow>
                     );
@@ -465,7 +472,7 @@ export default function DepositPage() {
                 toast.success(`${tampil.length} rekening diunduh`);
               }}
             >
-              Unduh Rekap Saldo
+              <Download className="size-4" /> Unduh Rekap Saldo
             </Button>
           </Toolbar>
           <TableShell>
@@ -473,17 +480,18 @@ export default function DepositPage() {
               <TableHeader>
                 <TableRow>
                   <Head label="No." className="w-10" />
+                  <Head label="Aksi" />
+                  <Head label="Nomor" />
                   <Head label="Pengguna" />
                   <Head label="Kategori" />
                   <Head label="Saldo" className="text-right" />
-                  <Head label="" className="text-right" />
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
-                  <TableSkeleton rows={5} cols={5} />
+                  <TableSkeleton rows={5} cols={6} />
                 ) : rows.length === 0 ? (
-                  <EmptyRow colSpan={5} message="Tidak ditemukan." />
+                  <EmptyRow colSpan={6} message="Tidak ditemukan." />
                 ) : (
                   rows
                     .filter((r) => {
@@ -493,8 +501,21 @@ export default function DepositPage() {
                       return true;
                     })
                     .map((r, i) => (
-                      <TableRow key={r.user_id} className={r.balance === 0 ? "bg-rose-50/40" : "hover:bg-muted/50"}>
-                        <TableCell className="text-muted-foreground">{i + 1}</TableCell>
+                      <TableRow key={r.user_id} className={`row-accent ${r.balance === 0 ? "bg-rose-50/40" : "hover:bg-muted/50"}`}>
+                        <RowNo i={i} />
+                        <AksiCell>
+                          <div className="flex gap-1">
+                            <TombolAksi label="Detail" onClick={() => openUser(r)} />
+                            <TombolAksi
+                              label="+ Koreksi"
+                              onClick={() => {
+                                openUser(r);
+                                setAdjOpen(true);
+                              }}
+                            />
+                          </div>
+                        </AksiCell>
+                        <NomorChip label={`#${r.user_id}`} title={`Nomor pengguna #${r.user_id}`} />
                         <TableCell className="font-medium">{r.full_name}</TableCell>
                         <TableCell>
                           <span className="rounded border border-primary/20 bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
@@ -503,27 +524,6 @@ export default function DepositPage() {
                         </TableCell>
                         <TableCell className={`text-right font-semibold ${r.balance > 0 ? "text-green-700" : "text-rose-600"}`}>
                           {rp(r.balance)}
-                          {r.balance === 0 && (
-                            <div className="text-[10px] font-medium text-rose-500">Saldo kosong — perlu top-up</div>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-1">
-                            <Button size="sm" variant="outline" onClick={() => openUser(r)}>
-                              Lihat Detail
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/40"
-                              onClick={() => {
-                                openUser(r);
-                                setAdjOpen(true);
-                              }}
-                            >
-                              + Koreksi
-                            </Button>
-                          </div>
                         </TableCell>
                       </TableRow>
                     ))
@@ -564,10 +564,10 @@ export default function DepositPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setAdjOpen(false)}>
-              Batal
+              <X className="size-4" /> Batal
             </Button>
             <Button disabled={submitting} onClick={submitAdjustment}>
-              {submitting ? "Mengirim…" : "Ajukan"}
+              <Send className="size-4" /> {submitting ? "Mengirim…" : "Ajukan"}
             </Button>
           </DialogFooter>
         </DialogContent>
